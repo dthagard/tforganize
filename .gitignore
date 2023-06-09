@@ -19,3 +19,10 @@
 
 # Go workspace file
 go.work
+
+# Final binary
+bin/
+
+# Scratch workspace files
+scratch/
+
