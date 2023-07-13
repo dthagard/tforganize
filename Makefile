@@ -2,34 +2,18 @@
 BIN_DIR := ./bin
 APP_NAME := tfsort
 
-# Dynamic variables
-SRCS := $(wildcard *.go)
-OBJS := $(patsubst %.go, $(BIN_DIR)/%.o, $(SRCS))
-
-# User variables
-TARGET := sample_hcl2json.hcl
-
 # Go parameters
 GOCMD = go
-GOTOOL = $(GOCMD) tool
 GOBUILD = $(GOCMD) build
 GOCLEAN = $(GOCMD) clean
 GOCOMPILE = $(GOTOOL) compile
+GOGET = $(GOCMD) get
 GOINSTALL = $(GOCMD) install
 GOTEST = $(GOCMD) test
+GOTOOL = $(GOCMD) tool
 
 # Default target
 default: all
-
-#####################
-# Build targets
-#####################
-
-$(BIN_DIR)/$(APP_NAME): $(OBJS)
-	$(GOBUILD) -o $@ $(OBJS)
-
-$(BIN_DIR)/%.o: %.go
-	$(GOCOMPILE) -o $@ $<
 
 #####################
 # Phony targets
@@ -37,7 +21,7 @@ $(BIN_DIR)/%.o: %.go
 
 # Build the application
 .PHONY: all
-all: $(BIN_DIR)/$(APP_NAME)
+all: configure build
 
 # Build target
 .PHONY: build
@@ -56,6 +40,7 @@ configure:
 	$(GOCMD) mod tidy
 	$(GOCMD) mod vendor
 	$(GOINSTALL) github.com/githubnemo/CompileDaemon@latest
+	$(GOGET) github.com/dthagard/tfsort
 
 # Cache the dependencies locally
 .PHONY: dep
@@ -66,11 +51,6 @@ dep:
 .PHONY: install
 install:
 	$(GOINSTALL)
-
-# Run the golangci-lint tool
-.PHONY: lint
-lint:
-	golangci-lint run --enable-all
 
 # Run target
 .PHONY: run
@@ -85,7 +65,7 @@ test:
 # Generate the test coverage report
 .PHONY: test_coverage
 test_coverage:
-	go test ./... -coverprofile=coverage.out
+	$(GOTEST) ./... -coverprofile=coverage.out
 
 # Watch the target files and rebuild on change
 .PHONY: watch
