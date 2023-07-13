@@ -29,8 +29,8 @@ func sortFiles(files []string) (map[string][]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("could not combine files: %w", err)
 		}
-
-		filesToSort = append(filesToSort, combinedFile)
+		// Reset filesToSort to only contain combinedFile.
+		filesToSort = []string{combinedFile}
 	}
 
 	output := map[string][]byte{}
