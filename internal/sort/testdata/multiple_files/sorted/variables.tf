@@ -1,17 +1,17 @@
 variable "allow_all_egress_ranges" {
-  default     = null
   description = "List of network ranges to which all egress traffic will be allowed"
+  default     = null
 }
 
 variable "allow_all_ingress_ranges" {
-  default     = null
   description = "List of network ranges from which all ingress traffic will be allowed"
+  default     = null
 }
 
 variable "base_net_hub_project_id" {
-  default     = ""
   description = "The base net hub project ID"
   type        = string
+  default     = ""
 }
 
 variable "bgp_asn_subnet" {
@@ -30,15 +30,15 @@ variable "default_region2" {
 }
 
 variable "dns_enable_inbound_forwarding" {
-  default     = true
   description = "Toggle inbound query forwarding for VPC DNS."
   type        = bool
+  default     = true
 }
 
 variable "dns_enable_logging" {
-  default     = true
   description = "Toggle DNS logging for VPC DNS."
   type        = bool
+  default     = true
 }
 
 variable "dns_hub_project_id" {
@@ -57,45 +57,45 @@ variable "environment_code" {
 }
 
 variable "firewall_enable_logging" {
-  default     = true
   description = "Toggle firewall logging for VPC Firewalls."
   type        = bool
+  default     = true
 }
 
 variable "mode" {
-  default     = null
   description = "Network deployment mode, should be set to `hub` or `spoke` when `enable_hub_and_spoke` architecture chosen, keep as `null` otherwise."
   type        = string
+  default     = null
 }
 
 variable "nat_bgp_asn" {
-  default     = 64514
   description = "BGP ASN for first NAT cloud routes."
   type        = number
+  default     = 64514
 }
 
 variable "nat_enabled" {
-  default     = false
   description = "Toggle creation of NAT cloud router."
   type        = bool
+  default     = false
 }
 
 variable "nat_num_addresses_region1" {
-  default     = 2
   description = "Number of external IPs to reserve for first Cloud NAT."
   type        = number
+  default     = 2
 }
 
 variable "nat_num_addresses_region2" {
-  default     = 2
   description = "Number of external IPs to reserve for second Cloud NAT."
   type        = number
+  default     = 2
 }
 
 variable "private_service_cidr" {
-  default     = null
   description = "CIDR range for private service networking. Used for Cloud SQL and other managed services."
   type        = string
+  default     = null
 }
 
 variable "private_service_connect_ip" {
@@ -109,19 +109,19 @@ variable "project_id" {
 }
 
 variable "secondary_ranges" {
-  default     = {}
   description = "Secondary ranges that will be used in some of the subnets"
   type        = map(list(object({ range_name = string, ip_cidr_range = string })))
+  default     = {}
 }
 
 variable "subnets" {
-  default     = []
   description = "The list of subnets being created"
   type        = list(map(string))
+  default     = []
 }
 
 variable "windows_activation_enabled" {
-  default     = false
   description = "Enable Windows license activation for Windows workloads."
   type        = bool
+  default     = false
 }

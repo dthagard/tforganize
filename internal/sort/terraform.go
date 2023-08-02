@@ -54,6 +54,10 @@ var (
 			"pre":  []string{"required_version", "required_providers"},
 			"post": []string{},
 		},
+		"variable": {
+			"pre": []string{"description", "type", "default", "nullable", "sensitive"},
+			"post": []string{"validation"},
+		},
 		"default": {
 			"pre":  []string{},
 			"post": []string{},
