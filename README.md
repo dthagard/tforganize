@@ -50,6 +50,50 @@ Global Flags:
   -d, --debug           verbose logging
 ```
 
+### Running the binary directly
+
+Sort all Terraform files in the current directory:
+
+```shell
+tforganize sort -i .
+```
+
+Sort all Terraform files in a specific directory:
+
+```shell
+tforganize sort -i /path/to/terraform/files
+```
+
+### Using docker
+
+tforganize can be run in a container with the .tf files mounted inside of the volume:
+
+```shell
+docker run --rm -v "$(pwd):/tforganize" -w /tforganize ghcr.io/dthagard/tforganize/tforganize:latest sort -i .
+```
+
+### Using GitLab Runners
+
+To use tforganize in a GitLab Runner, configure your `.gitlab-ci.yml` with the following:
+
+```yaml
+tforganize:
+  before_script: []
+  image:
+    entrypoint: [""]
+    name: ghcr.io/dthagard/tforganize/tforganize:latest
+  rules:
+    # Always run tflint on merge request events to the default branch
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH
+      when: always
+  script:
+    - tforganize -i $TF_ROOT_DIRECTORY # Run the tforganize command aginst the Terraform directory
+    - git diff-index --quiet HEAD -- || exit 1 # Fail the job if any changes are detected
+  stage: lint
+  variables:
+    TERRAFORM_ROOT_DIRECTORY: <path_to_terraform_files>
+```
+
 ## Configuration
 
 tforganize allows you to customize its behavior by providing a configuration file in YAML format. The default configuration file is .tforganize.yaml in the user's home directory, but you can specify a different file using the --config option.
@@ -77,21 +121,7 @@ has-header: true
 keep-header: true
 ```
 
-In this example, tforganize will sort the Terraform files and keep any comments as well as prepend a header to every file.
-
-## Examples
-
-Sort all Terraform files in the current directory:
-
-```shell
-tforganize sort -i .
-```
-
-Sort all Terraform files in a specific directory:
-
-```shell
-tforganize sort -i /path/to/terraform/files
-```
+In this example configuration, tforganize will sort the Terraform files and keep any comments as well as prepend a header to every file.
 
 ## License
 
