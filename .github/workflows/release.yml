@@ -33,3 +33,18 @@ jobs:
           goos: ${{ matrix.goos }}
           goversion: "https://dl.google.com/go/go1.20.4.linux-amd64.tar.gz"
           pre_command: make configure
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: pre-step
+        shell: bash
+        run: echo "release-version=$(echo ${GITHUB_REF:10})" >> $GITHUB_OUTPUT
+      - name: Publish to Registry
+        uses: elgohr/Publish-Docker-Github-Action@v5
+        with:
+          name: dthagard/tforganize/tforganize
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io
+          tags: "latest,${{ steps.pre-step.outputs.release-version }}"
+          username: ${{ github.actor }}
