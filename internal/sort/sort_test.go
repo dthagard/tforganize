@@ -97,7 +97,7 @@ func testSortFile(path string, t *testing.T) {
 
 // setParams is a helper function for testSortFile
 func setParams(path string) error {
-	configFile := filepath.Join(path, ".tfsort.yaml")
+	configFile := filepath.Join(path, ".tforganize.yaml")
 	if ok, _ := AFS.Exists(configFile); ok {
 		config, err := AFS.ReadFile(configFile)
 		if err != nil {

@@ -11,7 +11,7 @@ var flags = &Params{}
 func GetCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Args:    cobra.ExactArgs(1),
-		Example: `tfsort sort main.tf`,
+		Example: `tforganize sort main.tf`,
 		Long:    `Sort reads a Terraform file or folder and sorts the resources found alphabetically ascending by resource type and name.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			Sort(args[0], flags)

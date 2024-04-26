@@ -1,6 +1,3 @@
-/*
-Copyright © 2023 Dan Thagard <dthagard@gmail.com
-*/
 package cmd
 
 import (
@@ -8,9 +5,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/dthagard/tfsort/internal/info"
-	"github.com/dthagard/tfsort/internal/sort"
-	"github.com/dthagard/tfsort/internal/version"
+	"github.com/dthagard/tforganize/internal/info"
+	"github.com/dthagard/tforganize/internal/sort"
+	"github.com/dthagard/tforganize/internal/version"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -18,7 +15,7 @@ import (
 )
 
 const (
-	envPrefix = "TFSORT"
+	envPrefix = "TFORGANIZE"
 )
 
 var (
@@ -37,7 +34,7 @@ func NewRootCommand() *RootCommand {
 				toggleDebug(cmd, args)
 				initConfig(cmd, args)
 			},
-			Short: "TFSort is a tool for sorting Terraform files and folders.",
+			Short: "tforganize is a tool for sorting Terraform files and folders.",
 		},
 	}
 
@@ -48,7 +45,7 @@ func NewRootCommand() *RootCommand {
 }
 
 func (rc *RootCommand) setFlags() {
-	rc.baseCmd.PersistentFlags().StringVar(&config, "config", "", "config file (default is $HOME/.tfsort.yaml)")
+	rc.baseCmd.PersistentFlags().StringVar(&config, "config", "", "config file (default is $HOME/.tforganize.yaml)")
 	rc.baseCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "verbose logging")
 }
 
@@ -81,10 +78,10 @@ func initConfig(cmd *cobra.Command, args []string) {
 		home, err := os.UserHomeDir()
 		cobra.CheckErr(err)
 
-		// Search config in home directory with name ".tfsort" (without extension).
+		// Search config in home directory with name ".tforganize" (without extension).
 		v.AddConfigPath(home)
 		v.SetConfigType("yaml")
-		v.SetConfigName(".tfsort")
+		v.SetConfigName(".tforganize")
 	}
 
 	if err := v.ReadInConfig(); err != nil {
@@ -105,7 +102,7 @@ func initConfig(cmd *cobra.Command, args []string) {
 	v.SetEnvPrefix(envPrefix)
 
 	// Environment variables can't have dashes in them, so bind them to their equivalent
-	// keys with underscores, e.g. --favorite-color to TFSORT_FAVORITE_COLOR
+	// keys with underscores, e.g. --favorite-color to TFORGANIZE_FAVORITE_COLOR
 	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 
 	// Bind to environment variables

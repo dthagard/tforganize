@@ -1,4 +1,4 @@
-module github.com/dthagard/tfsort
+module github.com/dthagard/tforganize
 
 go 1.20
 
@@ -6,7 +6,7 @@ require (
 	github.com/hashicorp/hcl/v2 v2.17.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/afero v1.9.5
-	github.com/spf13/cobra v1.7.0
+	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.16.0
 	gopkg.in/yaml.v3 v3.0.1

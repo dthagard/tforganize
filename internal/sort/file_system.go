@@ -111,7 +111,7 @@ func combineFiles(inputFilePaths []string) (string, error) {
 	log.WithField("inputFilePaths", inputFilePaths).Traceln("Starting combineFiles")
 
 	// Create temporary file path
-	tempDir := AFS.GetTempDir("tfsort/")
+	tempDir := AFS.GetTempDir("tforganize/")
 
 	// Create the output file
 	outputFile, err := AFS.TempFile(tempDir, fmt.Sprintf("%v.tf", os.Getuid()))

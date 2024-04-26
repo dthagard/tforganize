@@ -1,6 +1,6 @@
 # Static variables
 BIN_DIR := ./bin
-APP_NAME := tfsort
+APP_NAME := tforganize
 
 # Go parameters
 GOCMD = go
@@ -40,7 +40,7 @@ configure:
 	$(GOCMD) mod tidy
 	$(GOCMD) mod vendor
 	$(GOINSTALL) github.com/githubnemo/CompileDaemon@latest
-	$(GOGET) github.com/dthagard/tfsort
+	$(GOGET) github.com/dthagard/tforganize
 
 # Cache the dependencies locally
 .PHONY: dep
