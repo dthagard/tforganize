@@ -32,6 +32,7 @@ func setFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().BoolVarP(&flags.HasHeader, "has-header", "e", false, "the input files have a header")
 	cmd.PersistentFlags().StringVarP(&flags.HeaderPattern, "header-pattern", "p", "", "the header pattern to find the header in the input files")
 	cmd.PersistentFlags().BoolVarP(&flags.KeepHeader, "keep-header", "k", false, "keep the header matched in the header pattern in the output files")
+	cmd.PersistentFlags().BoolVarP(&flags.Inline, "inline", "i", false, "sort the resources in the input file(s) in place")
 	cmd.PersistentFlags().StringVarP(&flags.OutputDir, "output-dir", "o", "", "output the results to a specific folder")
 	cmd.PersistentFlags().BoolVarP(&flags.RemoveComments, "remove-comments", "r", false, "remove comments in the sorted file(s)")
 }
