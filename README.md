@@ -84,13 +84,13 @@ In this example, tforganize will sort the Terraform files and keep any comments 
 Sort all Terraform files in the current directory:
 
 ```shell
-tforganize sort .
+tforganize sort -i .
 ```
 
 Sort all Terraform files in a specific directory:
 
 ```shell
-tforganize sort /path/to/terraform/files
+tforganize sort -i /path/to/terraform/files
 ```
 
 ## License
