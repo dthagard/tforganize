@@ -94,6 +94,28 @@ tforganize:
     TERRAFORM_ROOT_DIRECTORY: <path_to_terraform_files>
 ```
 
+### Using Makefile
+
+To use tforganize in make, configure your `Makefile` with the following:
+
+```shell
+TF_FOLDERS := $(shell find . -type d -not -name '.terraform')
+
+# tforganize will organize the terraform files in the project
+.PHONY: tforganize-all
+tforganize-all:
+    @for dir in $(TF_FOLDERS); do \
+        make tforganize dir=$$dir; \
+    done;
+
+.PHONY: tforganize
+tforganize:
+    @echo "Organizing $$dir...\n"; \
+    docker run --rm -v $(shell pwd)/$$dir:/tforganize -w /tforganize ghcr.io/dthagard/tforganize/tforganize:latest sort -i .
+```
+
+Adjust the `find` command as needed for you specific repository configuration.
+
 ## Configuration
 
 tforganize allows you to customize its behavior by providing a configuration file in YAML format. The default configuration file is .tforganize.yaml in the user's home directory, but you can specify a different file using the --config option.
