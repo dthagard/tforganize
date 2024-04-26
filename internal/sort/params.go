@@ -9,6 +9,7 @@ func initParams() {
 		GroupByType:    false,
 		HasHeader:      false,
 		HeaderPattern:  "",
+		Inline:         false,
 		KeepHeader:     false,
 		OutputDir:      "",
 		RemoveComments: false,

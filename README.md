@@ -40,6 +40,7 @@ Flags:
   -e, --has-header              the input files have a header
   -p, --header-pattern string   the header pattern to find the header in the input files
   -h, --help                    help for sort
+  -i, --inline                  sort the resources in the input file(s) in place
   -k, --keep-header             keep the header matched in the header pattern in the output files
   -o, --output-dir string       output the results to a specific folder
   -r, --remove-comments         remove comments in the sorted file(s)

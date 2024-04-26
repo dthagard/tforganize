@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
@@ -53,6 +54,25 @@ func getPathInfo(path string) (fs.FileInfo, error) {
 	}
 
 	return info, nil
+}
+
+// Get the directory info for a given target
+func getDirectory(path string) (string, error) {
+	log.WithField("path", path).Traceln("Starting getDirInfo")
+
+	info, err := getPathInfo(path)
+	if err != nil {
+		return "", err
+	}
+
+	if info.IsDir() {
+		return path, nil
+	}
+
+	fileParts := strings.Split(path, afero.FilePathSeparator)
+	dirPath := strings.Join(fileParts[:len(fileParts)-1], afero.FilePathSeparator)
+
+	return dirPath, nil
 }
 
 // getFilesInFolder returns a list of files in a folder.
