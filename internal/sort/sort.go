@@ -86,7 +86,7 @@ func sortBlocks(blocks hclsyntax.Blocks) (map[string][]byte, error) {
 	// Initialize the output
 	output := map[string][]byte{}
 
-	sort.Sort(BlockListSorter(blocks))
+	sort.Stable(BlockListSorter(blocks))
 	log.WithField("blocks", blocks).Debugln("Got back sorted blocks from BlockListSorter")
 
 	// Iterate through each block and order its attributes and child blocks
@@ -285,6 +285,16 @@ func getBlockBodyBytes(block *hclsyntax.Block, keys []string) ([]byte, error) {
 		return nil, fmt.Errorf("could not get path from block: %w", err)
 	}
 
+	// Pre-group child blocks by key to correctly handle multiple blocks of the
+	// same type (e.g. multiple "statement" or "ingress" blocks). A plain linear
+	// search always matches the first block, causing duplicates and data loss.
+	childBlocksByKey := make(map[string][]*hclsyntax.Block)
+	for _, childBlock := range block.Body.Blocks {
+		childBlockKey := formatBlockKey(childBlock)
+		childBlocksByKey[childBlockKey] = append(childBlocksByKey[childBlockKey], childBlock)
+	}
+	childBlockIndex := make(map[string]int)
+
 	// Loop over the keys
 	for i, key := range keys {
 		// Write the block attributes
@@ -298,11 +308,14 @@ func getBlockBodyBytes(block *hclsyntax.Block, keys []string) ([]byte, error) {
 			continue
 		}
 
-		// Write the block child blocks
-		for _, childBlock := range block.Body.Blocks {
-			childBlockKey := formatBlockKey(childBlock)
-			log.WithFields(log.Fields{"key": key, "childBlockKey": childBlockKey}).Traceln("Checking key against child block")
-			if childBlockKey == key {
+		// Write the block child blocks — use the pre-grouped map so each
+		// occurrence of a duplicate key maps to the next unused block.
+		if childBlocks, ok := childBlocksByKey[key]; ok {
+			idx := childBlockIndex[key]
+			if idx < len(childBlocks) {
+				childBlock := childBlocks[idx]
+				childBlockIndex[key]++
+
 				log.WithField("childBlock", childBlock).Debugln("Found child block in blocks")
 				buffer = addNewLineIfBufferExists(buffer)
 				b, err := getSortedBlockBytes(childBlock)
@@ -319,7 +332,6 @@ func getBlockBodyBytes(block *hclsyntax.Block, keys []string) ([]byte, error) {
 				// Append the buffer to the output and clear the buffer
 				output = append(output, buffer...)
 				buffer = []byte{}
-				break
 			}
 		}
 	}

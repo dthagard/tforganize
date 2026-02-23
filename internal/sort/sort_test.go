@@ -54,10 +54,25 @@ func TestSortFile(t *testing.T) {
 		path := filepath.Join(testDataDir, "multiple_files_with_headers")
 		testSortFile(path, t)
 	})
+
+	/*********************************************************************/
+	// Regression test for issue #5: multiple nested blocks of the same
+	// type (no labels) must all be preserved in the output. Previously,
+	// only the first block was emitted and all subsequent blocks were
+	// silently replaced with a copy of the first.
+	/*********************************************************************/
+
+	t.Run("multiple nested blocks", func(t *testing.T) {
+		path := filepath.Join(testDataDir, "multiple_nested_blocks")
+		testSortFile(path, t)
+	})
 }
 
 // testSortFile is a helper function for TestSortFile
 func testSortFile(path string, t *testing.T) {
+	// Reset params to defaults so state from a previous test case doesn't bleed in.
+	initParams()
+
 	// Get the files in the unsorted directory
 	unsortedFiles, err := AFS.ReadDir(filepath.Join(path, unsortedDir))
 	if err != nil {
