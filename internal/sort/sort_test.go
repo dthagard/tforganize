@@ -56,6 +56,18 @@ func TestSortFile(t *testing.T) {
 	})
 
 	/*********************************************************************/
+	// Test that pre-meta arguments are sorted in their defined canonical
+	// order (not alphabetically) across variable, resource, and module
+	// block types. Also validates that the sort comparator returns false
+	// (not true) when neither key is found, preserving strict weak ordering.
+	/*********************************************************************/
+
+	t.Run("meta arg ordering", func(t *testing.T) {
+		path := filepath.Join(testDataDir, "meta_arg_ordering")
+		testSortFile(path, t)
+	})
+
+	/*********************************************************************/
 	// Regression test for issue #5: multiple nested blocks of the same
 	// type (no labels) must all be preserved in the output. Previously,
 	// only the first block was emitted and all subsequent blocks were
