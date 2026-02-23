@@ -12,16 +12,28 @@ variable "partial" {
   type        = number
 }
 
-resource "aws_instance" "example" {
+resource "aws_instance" "for_each_example" {
   ami           = "ami-12345678"
   instance_type = "t3.micro"
   provider      = aws.west
   for_each      = toset(["a", "b"])
+}
+
+resource "aws_instance" "count_example" {
+  ami           = "ami-12345678"
+  instance_type = "t3.micro"
+  provider      = aws.west
   count         = 2
 }
 
-module "example" {
+module "for_each_example" {
   for_each  = toset(["x", "y"])
+  providers = { aws = aws.west }
+  version   = "~> 2.0"
+  source    = "terraform-aws-modules/vpc/aws"
+}
+
+module "count_example" {
   count     = 1
   providers = { aws = aws.west }
   version   = "~> 2.0"
