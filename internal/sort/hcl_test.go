@@ -173,6 +173,101 @@ func TestIsEndOfComment(t *testing.T) {
 	})
 }
 
+func TestGetNodeComment(t *testing.T) {
+
+	/*********************************************************************/
+	// Block comment directly adjacent to the resource (no blank line).
+	// The closing */ must not inject a spurious blank line.
+	/*********************************************************************/
+
+	t.Run("block comment adjacent to block", func(t *testing.T) {
+		lines := []string{
+			"/*",
+			" * This is a block comment",
+			" */",
+			`resource "aws_instance" "foo" {`,
+			"}",
+		}
+		// startLine is the 0-indexed position of the resource line.
+		expected := []string{
+			"/*",
+			" * This is a block comment",
+			" */",
+		}
+		result := getNodeComment(lines, 3)
+		if !reflect.DeepEqual(result, expected) {
+			t.Errorf("getNodeComment() = %v, want %v", result, expected)
+		}
+	})
+
+	/*********************************************************************/
+	// Block comment separated from the resource by one blank line.
+	// That single blank line must be preserved in the output.
+	/*********************************************************************/
+
+	t.Run("block comment with blank line before block", func(t *testing.T) {
+		lines := []string{
+			"/*",
+			" * This is a block comment",
+			" */",
+			"",
+			`resource "aws_instance" "foo" {`,
+			"}",
+		}
+		expected := []string{
+			"/*",
+			" * This is a block comment",
+			" */",
+			"",
+		}
+		result := getNodeComment(lines, 4)
+		if !reflect.DeepEqual(result, expected) {
+			t.Errorf("getNodeComment() = %v, want %v", result, expected)
+		}
+	})
+
+	/*********************************************************************/
+	// Consecutive single-line comments adjacent to the resource.
+	// Both lines must be captured; no spurious blank line appended.
+	/*********************************************************************/
+
+	t.Run("consecutive single-line comments adjacent to block", func(t *testing.T) {
+		lines := []string{
+			"# First comment",
+			"# Second comment",
+			`resource "aws_instance" "foo" {`,
+			"}",
+		}
+		expected := []string{
+			"# First comment",
+			"# Second comment",
+		}
+		result := getNodeComment(lines, 2)
+		if !reflect.DeepEqual(result, expected) {
+			t.Errorf("getNodeComment() = %v, want %v", result, expected)
+		}
+	})
+
+	/*********************************************************************/
+	// Block with no preceding comment at all.
+	// The function must return an empty slice (not nil panic).
+	/*********************************************************************/
+
+	t.Run("block with no comment", func(t *testing.T) {
+		lines := []string{
+			`variable "other" {`,
+			"  default = 1",
+			"}",
+			`resource "aws_instance" "foo" {`,
+			"}",
+		}
+		result := getNodeComment(lines, 3)
+		if len(result) != 0 {
+			t.Errorf("getNodeComment() = %v, want empty slice", result)
+		}
+	})
+}
+
 func TestRemoveLeadingEmptyLines(t *testing.T) {
 
 	/*********************************************************************/

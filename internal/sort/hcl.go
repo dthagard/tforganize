@@ -111,10 +111,12 @@ func getNodeComment(lines []string, startLine int) []string {
 			buffer = append(buffer, lines[i])
 			insideComment = false
 		} else if isEndOfComment(lines[i]) {
-			buffer = append(buffer, "")
+			if insertNewLine {
+				buffer = append(buffer, "")
+				insertNewLine = false
+			}
 			buffer = append(buffer, lines[i])
 			insideComment = true
-			insertNewLine = false
 		} else if isEmptyLine(lines[i]) {
 			insertNewLine = true
 		} else {

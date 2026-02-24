@@ -1,7 +1,6 @@
 /***************************************************************
   VPC Peering Configuration
  **************************************************************/
-
 data "google_compute_network" "vpc_base_net_hub" {
   count = var.mode == "spoke" ? 1 : 0
 
