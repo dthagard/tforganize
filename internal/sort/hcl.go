@@ -3,7 +3,6 @@ package sort
 import (
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -17,7 +16,7 @@ func parseHclFile(path string) (*hclsyntax.Body, error) {
 	log.WithField("path", path).Traceln("Starting parseHclFile")
 
 	// Read the HCL file content
-	hclContent, err := os.ReadFile(path)
+	hclContent, err := AFS.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read HCL file: %w", err)
 	}
