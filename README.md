@@ -122,6 +122,36 @@ Key fields:
 
 ## Automation examples
 
+### pre-commit
+
+Add `tforganize` as a [pre-commit](https://pre-commit.com) hook so it runs automatically before every commit.
+
+#### Script hook (requires `tforganize` on PATH)
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/dthagard/tforganize
+    rev: v0.0.0  # replace with the desired tag
+    hooks:
+      - id: tforganize
+```
+
+This runs `scripts/pre-commit-tforganize.sh`, which calls `tforganize sort --inline` on the staged `.tf` files. If `tforganize` is not installed you will see a clear error with installation instructions.
+
+#### Docker hook (no Go installation required)
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/dthagard/tforganize
+    rev: v0.0.0  # replace with the desired tag
+    hooks:
+      - id: tforganize-docker
+```
+
+This pulls `ghcr.io/dthagard/tforganize/tforganize:latest` and runs the sort inside the container. Ideal for teams where not everyone has Go installed.
+
 ### GitHub Actions
 
 ```yaml
