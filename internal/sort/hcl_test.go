@@ -3,8 +3,10 @@ package sort
 import (
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
+	hcl "github.com/hashicorp/hcl/v2"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 )
@@ -297,6 +299,57 @@ func TestParseHclFileUsesInjectedFileSystem(t *testing.T) {
 	}
 	if body == nil {
 		t.Fatal("parseHclFile() returned nil body, expected non-nil")
+	}
+}
+
+// stubHCLBody is a minimal hcl.Body implementation whose concrete type is
+// intentionally not *hclsyntax.Body, used to exercise the type-assertion
+// error path in parseHclFile.
+type stubHCLBody struct{}
+
+func (s *stubHCLBody) Content(schema *hcl.BodySchema) (*hcl.BodyContent, hcl.Diagnostics) {
+	return &hcl.BodyContent{}, nil
+}
+func (s *stubHCLBody) PartialContent(schema *hcl.BodySchema) (*hcl.BodyContent, hcl.Body, hcl.Diagnostics) {
+	return &hcl.BodyContent{}, s, nil
+}
+func (s *stubHCLBody) JustAttributes() (hcl.Attributes, hcl.Diagnostics) {
+	return hcl.Attributes{}, nil
+}
+func (s *stubHCLBody) MissingItemRange() hcl.Range { return hcl.Range{} }
+
+func TestParseHclFileNonHclsyntaxBody(t *testing.T) {
+	// Save and restore the parse function and filesystem.
+	origParseFn := hclParseFn
+	originalFS := FS
+	originalAFS := AFS
+	t.Cleanup(func() {
+		hclParseFn = origParseFn
+		FS = originalFS
+		AFS = originalAFS
+	})
+
+	// Inject an in-memory filesystem so AFS.ReadFile succeeds.
+	SetFileSystem(afero.NewMemMapFs())
+	tfPath := "/test/stub.tf"
+	if err := AFS.MkdirAll("/test", 0755); err != nil {
+		t.Fatalf("could not create directory: %v", err)
+	}
+	if err := AFS.WriteFile(tfPath, []byte("# stub\n"), 0644); err != nil {
+		t.Fatalf("could not write stub file: %v", err)
+	}
+
+	// Inject a parser that returns a file whose body is not *hclsyntax.Body.
+	hclParseFn = func(content []byte, filename string) (*hcl.File, hcl.Diagnostics) {
+		return &hcl.File{Body: &stubHCLBody{}}, nil
+	}
+
+	_, err := parseHclFile(tfPath)
+	if err == nil {
+		t.Fatal("parseHclFile() expected an error for non-hclsyntax body, got nil")
+	}
+	if !strings.Contains(err.Error(), "*hclsyntax.Body") {
+		t.Errorf("parseHclFile() error = %q; want it to mention *hclsyntax.Body", err.Error())
 	}
 }
 
