@@ -13,8 +13,8 @@ func GetCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		Example: `tforganize sort main.tf`,
 		Long:    `Sort reads a Terraform file or folder and sorts the resources found alphabetically ascending by resource type and name.`,
-		Run: func(cmd *cobra.Command, args []string) {
-			Sort(args[0], flags)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return Sort(args[0], flags)
 		},
 		Short: "Sort a Terraform file or folder.",
 		Use:   "sort <file | folder>",

@@ -6,12 +6,12 @@ import (
 	"reflect"
 	"testing"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 	"gopkg.in/yaml.v3"
 )
 
-// TestSortNilSettings verifies that Sort does not panic when settings is nil.
+// TestSortNilSettings verifies that Sort does not panic when settings is nil
+// and returns an error for a nonexistent target.
 func TestSortNilSettings(t *testing.T) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -19,8 +19,10 @@ func TestSortNilSettings(t *testing.T) {
 		}
 	}()
 	initParams()
-	// A nonexistent target causes a logged error; the important thing is no panic.
-	Sort("nonexistent-path-that-does-not-exist", nil)
+	err := Sort("nonexistent-path-that-does-not-exist", nil)
+	if err == nil {
+		t.Fatal("expected an error for nonexistent target, got nil")
+	}
 }
 
 // TestSortInlineDoesNotMutateSettings verifies that Sort with Inline=true does
@@ -37,11 +39,57 @@ func TestSortInlineDoesNotMutateSettings(t *testing.T) {
 
 	initParams()
 	settings := &Params{Inline: true}
-	Sort(target, settings)
+	if err := Sort(target, settings); err != nil {
+		t.Fatalf("Sort returned unexpected error: %v", err)
+	}
 
 	if settings.OutputDir != "" {
 		t.Fatalf("Sort mutated caller's OutputDir: got %q, want empty string", settings.OutputDir)
 	}
+}
+
+// TestSortErrorPaths verifies that Sort returns errors (not panics or silently
+// continues) for each known fatal condition.
+func TestSortErrorPaths(t *testing.T) {
+	t.Run("nonexistent target", func(t *testing.T) {
+		initParams()
+		err := Sort("nonexistent-path-xyz-does-not-exist", nil)
+		if err == nil {
+			t.Fatal("expected error for nonexistent target, got nil")
+		}
+	})
+
+	t.Run("inline conflicts with group-by-type", func(t *testing.T) {
+		initParams()
+		err := Sort(".", &Params{Inline: true, GroupByType: true})
+		if err == nil {
+			t.Fatal("expected error when inline conflicts with group-by-type, got nil")
+		}
+	})
+
+	t.Run("inline conflicts with output-dir", func(t *testing.T) {
+		initParams()
+		err := Sort(".", &Params{Inline: true, OutputDir: "/some/dir"})
+		if err == nil {
+			t.Fatal("expected error when inline conflicts with output-dir, got nil")
+		}
+	})
+
+	t.Run("sortFiles failure via stub", func(t *testing.T) {
+		memFS := afero.NewMemMapFs()
+		SetFileSystem(memFS)
+		defer SetFileSystem(afero.NewOsFs())
+
+		const target = "/bad-hcl"
+		_ = memFS.MkdirAll(target, 0755)
+		_ = afero.WriteFile(memFS, filepath.Join(target, "bad.tf"), []byte("this is not { valid HCL\n"), 0644)
+
+		initParams()
+		err := Sort(target, nil)
+		if err == nil {
+			t.Fatal("expected error when sortFiles encounters invalid HCL, got nil")
+		}
+	})
 }
 
 const (
@@ -115,18 +163,20 @@ func TestSortFile(t *testing.T) {
 
 // testSortFile is a helper function for TestSortFile
 func testSortFile(path string, t *testing.T) {
+	t.Helper()
+
 	// Reset params to defaults so state from a previous test case doesn't bleed in.
 	initParams()
 
 	// Get the files in the unsorted directory
 	unsortedFiles, err := AFS.ReadDir(filepath.Join(path, unsortedDir))
 	if err != nil {
-		log.WithError(err).Errorln("could not read unsorted directory")
+		t.Fatalf("could not read unsorted directory: %v", err)
 	}
 
 	// Set the params
 	if err := setParams(path); err != nil {
-		log.WithError(err).Errorln("could not set params")
+		t.Fatalf("could not set params: %v", err)
 	}
 	params.OutputDir = filepath.Join("./scratch", path)
 
@@ -138,14 +188,14 @@ func testSortFile(path string, t *testing.T) {
 		sortedFilePath := filepath.Join(path, sortedDir, fileName)
 		sortedBytes, err := AFS.ReadFile(sortedFilePath)
 		if err != nil {
-			log.WithError(err).Errorln("could not read file")
+			t.Fatalf("could not read expected sorted file %s: %v", sortedFilePath, err)
 		}
 
 		// Sort the unsorted file
 		unsortedFilePath := filepath.Join(path, unsortedDir, fileName)
 		results, err := sortFile(unsortedFilePath)
 		if err != nil {
-			log.WithError(err).Errorln("could not sort file")
+			t.Fatalf("sortFile(%s) returned unexpected error: %v", unsortedFilePath, err)
 		}
 
 		// Compare the sorted file to the expected sorted file
