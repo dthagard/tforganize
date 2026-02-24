@@ -36,18 +36,20 @@ type Params struct {
 // If the target is a folder, all files in the folder will be sorted.
 // If the target is a file, only that file will be sorted.
 func Sort(target string, settings *Params) {
+	// Copy settings into the package-level params before any dereference so
+	// that (a) nil settings is safe and (b) we never mutate the caller's struct.
+	if settings != nil {
+		log.WithField("settings", settings).Debugln("Found settings")
+		*params = *settings
+	}
+
 	// Check the parameters for inconsistencies
-	if settings.Inline && (settings.GroupByType || settings.OutputDir != "") {
+	if params.Inline && (params.GroupByType || params.OutputDir != "") {
 		log.Errorln("The inline flag conflicts with the group-by-type and output-dir flags")
 		return
 	}
 
 	log.WithField("target", target).Traceln("Starting sort")
-
-	if settings != nil {
-		log.WithField("settings", settings).Debugln("Found settings")
-		params = settings
-	}
 	log.WithField("params", params).Debugln("Using params for SortFiles")
 
 	// Get files from target
