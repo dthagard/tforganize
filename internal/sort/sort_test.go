@@ -75,6 +75,39 @@ func TestSortErrorPaths(t *testing.T) {
 		}
 	})
 
+	t.Run("keep-header without has-header", func(t *testing.T) {
+		initParams()
+		err := Sort(".", &Params{KeepHeader: true, HasHeader: false, HeaderPattern: "# header"})
+		if err == nil {
+			t.Fatal("expected error when keep-header is set but has-header is false, got nil")
+		}
+	})
+
+	t.Run("keep-header with empty header-pattern", func(t *testing.T) {
+		initParams()
+		err := Sort(".", &Params{KeepHeader: true, HasHeader: true, HeaderPattern: ""})
+		if err == nil {
+			t.Fatal("expected error when keep-header is set but header-pattern is empty, got nil")
+		}
+	})
+
+	t.Run("keep-header with valid has-header and header-pattern does not error on validation", func(t *testing.T) {
+		memFS := afero.NewMemMapFs()
+		SetFileSystem(memFS)
+		defer SetFileSystem(afero.NewOsFs())
+
+		const target = "/valid-keep-header"
+		_ = memFS.MkdirAll(target, 0755)
+		_ = afero.WriteFile(memFS, filepath.Join(target, "main.tf"), []byte("resource \"aws_s3_bucket\" \"b\" {}\n"), 0644)
+
+		initParams()
+		err := Sort(target, &Params{KeepHeader: true, HasHeader: true, HeaderPattern: "# header"})
+		// The validation should pass; any error here is from processing, not param validation.
+		if err != nil && err.Error() == "keep-header requires has-header=true and a non-empty header-pattern" {
+			t.Fatal("Sort incorrectly rejected valid keep-header params")
+		}
+	})
+
 	t.Run("sortFiles failure via stub", func(t *testing.T) {
 		memFS := afero.NewMemMapFs()
 		SetFileSystem(memFS)

@@ -54,6 +54,10 @@ func Sort(target string, settings *Params) error {
 		return fmt.Errorf("the inline flag conflicts with the group-by-type and output-dir flags")
 	}
 
+	if params.KeepHeader && (!params.HasHeader || params.HeaderPattern == "") {
+		return fmt.Errorf("keep-header requires has-header=true and a non-empty header-pattern")
+	}
+
 	log.WithField("target", target).Traceln("Starting sort")
 	log.WithField("params", params).Debugln("Using params for SortFiles")
 
