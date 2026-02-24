@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/afero"
 )
 
 func init() {
@@ -266,6 +267,36 @@ func TestGetNodeComment(t *testing.T) {
 			t.Errorf("getNodeComment() = %v, want empty slice", result)
 		}
 	})
+
+func TestParseHclFileUsesInjectedFileSystem(t *testing.T) {
+	// Save and restore the original filesystem
+	originalFS := FS
+	originalAFS := AFS
+	t.Cleanup(func() {
+		FS = originalFS
+		AFS = originalAFS
+	})
+
+	// Inject an in-memory filesystem
+	SetFileSystem(afero.NewMemMapFs())
+
+	// Write a minimal .tf file into the in-memory FS
+	tfPath := "/test/main.tf"
+	tfContent := []byte("resource \"null_resource\" \"example\" {}\n")
+	if err := AFS.MkdirAll("/test", 0755); err != nil {
+		t.Fatalf("could not create directory: %v", err)
+	}
+	if err := AFS.WriteFile(tfPath, tfContent, 0644); err != nil {
+		t.Fatalf("could not write tf file: %v", err)
+	}
+
+	body, err := parseHclFile(tfPath)
+	if err != nil {
+		t.Fatalf("parseHclFile() returned unexpected error: %v", err)
+	}
+	if body == nil {
+		t.Fatal("parseHclFile() returned nil body, expected non-nil")
+	}
 }
 
 func TestRemoveLeadingEmptyLines(t *testing.T) {
