@@ -1,7 +1,6 @@
 /******************************************
  Creates DNS Peering to DNS HUB
 *****************************************/
-
 data "google_compute_network" "vpc_dns_hub" {
   name    = "vpc-c-dns-hub"
   project = var.dns_hub_project_id

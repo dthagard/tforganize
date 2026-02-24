@@ -1,164 +1,267 @@
 # tforganize
 
-tforganize is a command-line interface (CLI) tool designed to help you organize your Terraform code. It provides functionality to sort and restructure your Terraform files, making them easier to read and maintain. By using tforganize, you can bring order to your Terraform modules, variables, resources, and outputs.
+> Opinionated Terraform file organizer — keep modules, variables, resources, and meta-arguments in a predictable order.
 
-## Features
+`tforganize` is a CLI that rewrites `.tf` files so they match a consistent layout. It sorts blocks, enforces Terraform's canonical meta-argument order, optionally splits output by block type, and protects custom headers/comments when you want to keep them.
 
-- **Sorting**: tforganize allows you to sort your Terraform files in a predefined order. It automatically organizes your modules, variables, resources, and outputs alphabetically, improving code readability and maintainability.
-- **Formatting**: In addition to sorting, tforganize also supports formatting your Terraform code. It applies consistent indentation, spacing, and line breaks, making your code more aesthetically pleasing and conforming to best practices.
+## Features at a glance
 
-### Configuration Options
-
-tforganize offers a range of configuration options to customize its behavior according to your preferences. You can define your own sorting rules, exclude certain files or directories from sorting, and specify the desired indentation style.
+- **Deterministic sorting** – resources, modules, variables, outputs, checks, imports, etc. are emitted in a stable order.
+- **Terraform-aware meta args** – `count`, `for_each`, `providers`, `moved`, `removed`, `check`, and friends are placed exactly where Terraform expects them.
+- **Group-by-type output** – `tforganize sort -g` rewrites files into logical targets (`variables.tf`, `outputs.tf`, `checks.tf`, `imports.tf`, `main.tf`, …).
+- **Header/comment control** – strip comments entirely, preserve them, or keep/apply a custom header banner.
+- **Inline or out-of-place** – update files in place (`--inline`) or emit to an output directory for review/CI.
+- **Configurable** – every flag has a YAML counterpart so you can save defaults in `.tforganize.yaml` or supply `--config`.
+- **CI friendly** – published as a Go binary and as `ghcr.io/dthagard/tforganize/tforganize:latest` for Docker/GitLab/GitHub runners.
 
 ## Installation
 
-To install tforganize, follow these steps:
+> Requires Go **1.20+** (or use the Docker image below).
 
-1. Ensure you have Golang 1.2.0 or higher installed on your system.
-1. Use go to install tforganize:
-
-```shell
-go install github.com/dthagard/tforganize
+```bash
+go install github.com/dthagard/tforganize@latest
 ```
 
-## Usage
+Or run straight from the container registry:
 
-tforganize can be used from the command line by executing the tforganize command followed by the path to the directory containing your Terraform files. Here's the basic syntax:
-
-```shell
-Sort reads a Terraform file or folder and sorts the resources found alphabetically ascending by resource type and name.
-
-Usage:
-   sort <file | folder> [flags]
-
-Examples:
-tforganize sort main.tf
-
-Flags:
-  -g, --group-by-type           organize the resources by type in the output files
-  -e, --has-header              the input files have a header
-  -p, --header-pattern string   the header pattern to find the header in the input files
-  -h, --help                    help for sort
-  -i, --inline                  sort the resources in the input file(s) in place
-  -k, --keep-header             keep the header matched in the header pattern in the output files
-  -o, --output-dir string       output the results to a specific folder
-  -r, --remove-comments         remove comments in the sorted file(s)
-
-Global Flags:
-      --config string   config file (default is $HOME/.tforganize.yaml)
-  -d, --debug           verbose logging
+```bash
+docker run --rm -v "$(pwd)":/tforganize -w /tforganize ghcr.io/dthagard/tforganize/tforganize:latest sort -i .
 ```
 
-### Running the binary directly
+## Quick start
 
-Sort all Terraform files in the current directory:
+Sort everything in the current directory in-place:
 
-```shell
+```bash
 tforganize sort -i .
 ```
 
-Sort all Terraform files in a specific directory:
+Split blocks by type (creates `variables.tf`, `outputs.tf`, `checks.tf`, `imports.tf`, etc.):
 
-```shell
-tforganize sort -i /path/to/terraform/files
+```bash
+tforganize sort --group-by-type --output-dir ./sorted
 ```
 
-### Using docker
+Keep a copyright header while stripping other comments:
 
-tforganize can be run in a container with the .tf files mounted inside of the volume:
-
-```shell
-docker run --rm -v "$(pwd):/tforganize" -w /tforganize ghcr.io/dthagard/tforganize/tforganize:latest sort -i .
+```bash
+tforganize sort \
+  --inline \
+  --has-header \
+  --header-pattern "$(cat header.txt)" \
+  --keep-header \
+  --remove-comments
 ```
 
-### Using GitLab Runners
+## CLI reference (trimmed)
 
-To use tforganize in a GitLab Runner, configure your `.gitlab-ci.yml` with the following:
+```text
+Usage: tforganize sort <file | folder> [flags]
+
+Flags:
+  -g, --group-by-type           write each block type to its default file (see table below)
+  -i, --inline                  rewrite files in place (otherwise write to --output-dir)
+  -o, --output-dir string       directory for sorted files (required unless --inline)
+  -r, --remove-comments         drop all comments except headers kept via --keep-header
+  -e, --has-header              treat files as having a header matched by --header-pattern
+  -p, --header-pattern string   regex or multi-line string that matches the header block
+  -k, --keep-header             preserve the matched header in the output (requires --has-header and pattern)
+      --config string           YAML config path (default $HOME/.tforganize.yaml)
+  -d, --debug                   enable verbose logging
+```
+
+## Group-by-type target files
+
+When `--group-by-type` (or `group-by-type: true` in config) is enabled, blocks are emitted to the following defaults:
+
+| Block type  | File name        |
+|-------------|------------------|
+| `data`      | `data.tf`        |
+| `locals`    | `locals.tf`      |
+| `output`    | `outputs.tf`     |
+| `terraform` | `versions.tf`    |
+| `variable`  | `variables.tf`   |
+| `check`     | `checks.tf`      |
+| `import`    | `imports.tf`     |
+| `moved`     | `main.tf`        |
+| `removed`   | `main.tf`        |
+| everything else | `main.tf`   |
+
+You can feed multiple files and directories; `tforganize` builds the combined AST, sorts it, and then writes these grouped files to the chosen output.
+
+## Configuration file
+
+All flags can be set via YAML (default `$HOME/.tforganize.yaml` or pass `--config`). Example:
 
 ```yaml
-tforganize:
-  before_script: []
-  image:
-    entrypoint: [""]
-    name: ghcr.io/dthagard/tforganize/tforganize:latest
-  rules:
-    # Always run tflint on merge request events to the default branch
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH
-      when: always
-  script:
-    - tforganize -i $TF_ROOT_DIRECTORY # Run the tforganize command aginst the Terraform directory
-    - git diff-index --quiet HEAD -- || exit 1 # Fail the job if any changes are detected
-  stage: lint
-  variables:
-    TERRAFORM_ROOT_DIRECTORY: <path_to_terraform_files>
-```
-
-### Using Makefile
-
-To use tforganize in make, configure your `Makefile` with the following:
-
-```shell
-TF_FOLDERS := $(shell find . -type d -not -name '.terraform')
-
-# tforganize will organize the terraform files in the project
-.PHONY: tforganize-all
-tforganize-all:
-    @for dir in $(TF_FOLDERS); do \
-        make tforganize dir=$$dir; \
-    done;
-
-.PHONY: tforganize
-tforganize:
-    @echo "Organizing $$dir...\n"; \
-    docker run --rm -v $(shell pwd)/$$dir:/tforganize -w /tforganize ghcr.io/dthagard/tforganize/tforganize:latest sort -i .
-```
-
-Adjust the `find` command as needed for you specific repository configuration.
-
-## Configuration
-
-tforganize allows you to customize its behavior by providing a configuration file in YAML format. The default configuration file is .tforganize.yaml in the user's home directory, but you can specify a different file using the --config option.
-
-Here is an example configuration file:
-
-```yaml
-header-pattern: |
- /**
-  * Copyright 2022 Google LLC
-  *
-  * Licensed under the Apache License, Version 2.0 (the "License");
-  * you may not use this file except in compliance with the License.
-  * You may obtain a copy of the License at
-  *
-  *      http://www.apache.org/licenses/LICENSE-2.0
-  *
-  * Unless required by applicable law or agreed to in writing, software
-  * distributed under the License is distributed on an "AS IS" BASIS,
-  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  * See the License for the specific language governing permissions and
-  * limitations under the License.
-  */
+# ~/.tforganize.yaml
+group-by-type: true
+inline: true
+remove-comments: false
 has-header: true
 keep-header: true
+header-pattern: |
+  /**
+   * Company Confidential
+   */
 ```
 
-In this example configuration, tforganize will sort the Terraform files and keep any comments as well as prepend a header to every file.
+Key fields:
 
-## License
+| Key              | Description                                  |
+|------------------|----------------------------------------------|
+| `group-by-type`  | Same as `--group-by-type`                    |
+| `inline`         | Same as `--inline`                           |
+| `output-dir`     | Same as `--output-dir`                       |
+| `remove-comments`| Same as `--remove-comments`                  |
+| `has-header`     | Indicates a header block exists              |
+| `header-pattern` | Multi-line string or regex used to match header |
+| `keep-header`    | Re-emit the matched header (requires the two options above) |
 
-tforganize is released under the MIT License. Feel free to modify and distribute it according to your needs.
+`tforganize` refuses to run with `keep-header: true` unless `has-header` is true **and** `header-pattern` is non-empty — the same validation applies to CLI flags.
 
-## Contributing
+## Automation examples
 
-Contributions to tforganize are welcome! If you find a bug, have a feature request, or want to contribute code improvements, please open an issue or submit a pull request on the GitHub repository.
+### pre-commit
 
-## Credits
+Add `tforganize` as a [pre-commit](https://pre-commit.com) hook so it runs automatically before every commit.
 
-tforganize is developed and maintained by @dthagard. It was inspired by the need for organizing complex Terraform projects efficiently.
+#### Script hook (requires `tforganize` on PATH)
 
-## Contact
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/dthagard/tforganize
+    rev: v0.0.0  # replace with the desired tag
+    hooks:
+      - id: tforganize
+```
 
-If you have any questions, suggestions, or feedback regarding tforganize, you can reach out to the project maintainer at 1454296+dthagard@users.noreply.github.com.
+This runs `scripts/pre-commit-tforganize.sh`, which calls `tforganize sort --inline` on the staged `.tf` files. If `tforganize` is not installed you will see a clear error with installation instructions.
 
-Happy organizing with tforganize!
+#### Docker hook (no Go installation required)
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/dthagard/tforganize
+    rev: v0.0.0  # replace with the desired tag
+    hooks:
+      - id: tforganize-docker
+```
+
+This pulls `ghcr.io/dthagard/tforganize/tforganize:latest` and runs the sort inside the container. Ideal for teams where not everyone has Go installed.
+
+### GitHub Actions
+
+```yaml
+name: Terraform hygiene
+
+on:
+  pull_request:
+
+jobs:
+  tforganize:
+    runs-on: ubuntu-latest
+    container: ghcr.io/dthagard/tforganize/tforganize:latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          tforganize sort --inline "$TF_ROOT"
+          git diff --quiet || {
+            echo "tforganize found drift";
+            exit 1;
+          }
+    env:
+      TF_ROOT: infrastructure
+```
+
+### GitLab CI
+
+```yaml
+stages: [lint]
+
+terraform:lint:
+  stage: lint
+  image:
+    name: ghcr.io/dthagard/tforganize/tforganize:latest
+    entrypoint: [""]
+  script:
+    - tforganize sort --inline "$TF_ROOT"  # reorganize files
+    - git diff --quiet || {
+        echo "tforganize found drift"; exit 1;
+      }
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  variables:
+    TF_ROOT: infrastructure
+```
+
+### CircleCI
+
+```yaml
+version: 2.1
+
+executors:
+  tforganize:
+    docker:
+      - image: ghcr.io/dthagard/tforganize/tforganize:latest
+
+jobs:
+  lint:
+    executor: tforganize
+    steps:
+      - checkout
+      - run: tforganize sort --inline "$TF_ROOT"
+      - run: git diff --quiet || { echo "tforganize found drift"; exit 1; }
+
+workflows:
+  version: 2
+  terraform:
+    jobs:
+      - lint
+```
+
+### Azure Pipelines
+
+```yaml
+trigger:
+  branches:
+    include: [ main ]
+
+pool:
+  vmImage: ubuntu-latest
+
+container: ghcr.io/dthagard/tforganize/tforganize:latest
+
+steps:
+  - checkout: self
+  - script: |
+      tforganize sort --inline $(TF_ROOT)
+      git diff --quiet || exit 1
+    displayName: Run tforganize
+```
+
+### Makefile loop
+
+```make
+TF_DIRS := $(shell find . -type d -not -path '*/.terraform/*')
+
+tforganize-all:
+	@for dir in $(TF_DIRS); do 	  echo "Organizing $$dir"; 	  tforganize sort --inline $$dir; 	done
+```
+
+### Docker one-liner
+
+```bash
+docker run --rm -v "$(pwd)":/tforganize -w /tforganize   ghcr.io/dthagard/tforganize/tforganize:latest sort -i .
+```
+
+
+## Contributing & support
+
+- Issues / ideas → [GitHub Issues](https://github.com/dthagard/tforganize/issues)
+- PRs welcome — please run `go test ./...` and include a short description of the behavior change.
+- Licensed under MIT.
+
+Happy organizing!

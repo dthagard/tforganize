@@ -24,3 +24,23 @@ jobs:
 
       - name: Test
         run: make test
+
+  pre-commit-hook:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+
+      - name: Build and install tforganize
+        run: |
+          make configure
+          make build
+          cp bin/tforganize /usr/local/bin/tforganize
+
+      - name: Run pre-commit hook script against test data
+        run: scripts/pre-commit-tforganize.sh internal/sort/testdata/single_file/unsorted

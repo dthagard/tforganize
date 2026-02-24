@@ -35,51 +35,64 @@ type Params struct {
 //
 // If the target is a folder, all files in the folder will be sorted.
 // If the target is a file, only that file will be sorted.
-func Sort(target string, settings *Params) {
+// Sort returns an error when a fatal condition is encountered so callers can
+// propagate it and exit non-zero.
+func Sort(target string, settings *Params) error {
+	// Clear the file-lines cache at the start of every run so that files
+	// read in a previous Sort call are not reused across runs.
+	clearLinesCache()
+
+	// Copy settings into the package-level params before any dereference so
+	// that (a) nil settings is safe and (b) we never mutate the caller's struct.
+	if settings != nil {
+		log.WithField("settings", settings).Debugln("Found settings")
+		*params = *settings
+	}
+
 	// Check the parameters for inconsistencies
-	if settings.Inline && (settings.GroupByType || settings.OutputDir != "") {
-		log.Errorln("The inline flag conflicts with the group-by-type and output-dir flags")
-		return
+	if params.Inline && (params.GroupByType || params.OutputDir != "") {
+		return fmt.Errorf("the inline flag conflicts with the group-by-type and output-dir flags")
+	}
+
+	if params.KeepHeader && (!params.HasHeader || params.HeaderPattern == "") {
+		return fmt.Errorf("keep-header requires has-header=true and a non-empty header-pattern")
 	}
 
 	log.WithField("target", target).Traceln("Starting sort")
-
-	if settings != nil {
-		log.WithField("settings", settings).Debugln("Found settings")
-		params = settings
-	}
 	log.WithField("params", params).Debugln("Using params for SortFiles")
 
 	// Get files from target
 	files, err := getFilesFromTarget(target)
 	if err != nil {
-		log.WithError(err).Errorln("could not get files from target")
+		return fmt.Errorf("could not get files from target: %w", err)
 	}
 
 	// Sort the files
 	sortedFiles, err := sortFiles(files)
 	if err != nil {
-		log.WithError(err).Errorln("could not sort files")
+		return fmt.Errorf("could not sort files: %w", err)
 	}
 
 	// Write the sorted files to the target directory if the inline flag is set
 	if params.Inline {
 		params.OutputDir, err = getDirectory(target)
 		if err != nil {
-			log.WithError(err).Errorln("could not get directory for the target")
+			return fmt.Errorf("could not get directory for the target: %w", err)
 		}
 	}
 
 	// Output the sorted files
 	if params.OutputDir != "" {
 		if err := writeFiles(sortedFiles); err != nil {
-			log.WithError(err).Errorln("could not write files")
+			return fmt.Errorf("could not write files: %w", err)
 		}
 	} else {
 		for _, body := range sortedFiles {
 			fmt.Println(string(body))
 		}
 	}
+
+	return nil
 }
 
 // SetFileSystem sets the filesystem to use for the Sort command

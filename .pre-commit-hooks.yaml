@@ -1,0 +1,17 @@
+- id: tforganize
+  name: tforganize
+  description: Sort and organize Terraform files using a locally installed tforganize binary.
+  language: script
+  entry: scripts/pre-commit-tforganize.sh
+  types_or: [terraform]
+  pass_filenames: true
+  require_serial: true
+
+- id: tforganize-docker
+  name: tforganize (docker)
+  description: Sort and organize Terraform files using the tforganize Docker image (no Go installation required).
+  language: docker_image
+  entry: ghcr.io/dthagard/tforganize/tforganize:latest sort --inline
+  types_or: [terraform]
+  pass_filenames: true
+  require_serial: true

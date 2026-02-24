@@ -213,7 +213,7 @@ func getSortedBlockKeys(block *hclsyntax.Block) map[int][]string {
 					return false
 				}
 			}
-			return true
+			return false
 		})
 	}
 

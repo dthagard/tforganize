@@ -3,37 +3,44 @@ package sort
 import (
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 
+	hcl "github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	hclsyntax "github.com/hashicorp/hcl/v2/hclsyntax"
 	log "github.com/sirupsen/logrus"
 )
+
+// hclParseFn is the function used to parse raw HCL bytes into an hcl.File.
+// It is a package-level variable so tests can replace it with a stub that
+// returns a non-hclsyntax body, exercising the type-assertion error path.
+var hclParseFn = func(content []byte, filename string) (*hcl.File, hcl.Diagnostics) {
+	return hclparse.NewParser().ParseHCL(content, filename)
+}
 
 // parseHclFile reads an HCL file from the given path and returns the body of the file
 func parseHclFile(path string) (*hclsyntax.Body, error) {
 	log.WithField("path", path).Traceln("Starting parseHclFile")
 
 	// Read the HCL file content
-	hclContent, err := os.ReadFile(path)
+	hclContent, err := AFS.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read HCL file: %w", err)
 	}
 
-	// Create a new HCL parser
-	parser := hclparse.NewParser()
-
 	// Parse the HCL content
-	file, diag := parser.ParseHCL(hclContent, path)
+	file, diag := hclParseFn(hclContent, path)
 	if diag.HasErrors() {
 		return nil, fmt.Errorf("failed to parse HCL: %s", diag.Error())
 	}
 	log.WithField("file", file).Debugln("Got back file from parser.ParseHCL")
 
 	// Get the body of the HCL file
-	body := file.Body.(*hclsyntax.Body)
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return nil, fmt.Errorf("unexpected HCL body type %T: expected *hclsyntax.Body", file.Body)
+	}
 
 	return body, nil
 }
@@ -111,10 +118,12 @@ func getNodeComment(lines []string, startLine int) []string {
 			buffer = append(buffer, lines[i])
 			insideComment = false
 		} else if isEndOfComment(lines[i]) {
-			buffer = append(buffer, "")
+			if insertNewLine {
+				buffer = append(buffer, "")
+				insertNewLine = false
+			}
 			buffer = append(buffer, lines[i])
 			insideComment = true
-			insertNewLine = false
 		} else if isEmptyLine(lines[i]) {
 			insertNewLine = true
 		} else {
