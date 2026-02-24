@@ -13,9 +13,15 @@ import (
 )
 
 var (
-	AFS *afero.Afero
-	FS  afero.Fs
+	AFS        *afero.Afero
+	FS         afero.Fs
+	linesCache = map[string][]string{}
 )
+
+// clearLinesCache resets the per-run file-lines cache.
+func clearLinesCache() {
+	linesCache = map[string][]string{}
+}
 
 func initFileSystem() {
 	log.Traceln("Starting initFileSystem")
@@ -96,8 +102,14 @@ func getFilesInFolder(path string) ([]string, error) {
 }
 
 // getLinesFromFile returns a list of lines from a file.
+// Results are cached for the duration of the current sort run.
 func getLinesFromFile(filename string) ([]string, error) {
 	log.WithField("filename", filename).Traceln("Starting getLinesFromFile")
+
+	if lines, ok := linesCache[filename]; ok {
+		log.WithField("filename", filename).Traceln("getLinesFromFile cache hit")
+		return lines, nil
+	}
 
 	file, err := AFS.Open(filename)
 	if err != nil {
@@ -116,6 +128,7 @@ func getLinesFromFile(filename string) ([]string, error) {
 		return nil, err
 	}
 
+	linesCache[filename] = lines
 	return lines, nil
 }
 

@@ -14,4 +14,5 @@ func initParams() {
 		OutputDir:      "",
 		RemoveComments: false,
 	}
+	clearLinesCache()
 }
