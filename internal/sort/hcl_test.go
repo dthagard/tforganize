@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	hcl "github.com/hashicorp/hcl/v2"
+	hclsyntax "github.com/hashicorp/hcl/v2/hclsyntax"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 )
@@ -175,6 +176,92 @@ func TestIsEndOfComment(t *testing.T) {
 		}
 	})
 }
+
+func TestBlockListSorterLess(t *testing.T) {
+
+	/*********************************************************************/
+	// Different types: the lexicographically smaller type comes first.
+	/*********************************************************************/
+
+	t.Run("different types ordered alphabetically", func(t *testing.T) {
+		bs := BlockListSorter{
+			&hclsyntax.Block{Type: "resource"},
+			&hclsyntax.Block{Type: "data"},
+		}
+		// data < resource, so Less(1,0) should be true
+		if !bs.Less(1, 0) {
+			t.Error("data should come before resource")
+		}
+		if bs.Less(0, 1) {
+			t.Error("resource should not come before data")
+		}
+	})
+
+	/*********************************************************************/
+	// Same type, no labels on either block: len(0) < len(0) is false.
+	/*********************************************************************/
+
+	t.Run("same type no labels returns false", func(t *testing.T) {
+		bs := BlockListSorter{
+			&hclsyntax.Block{Type: "terraform"},
+			&hclsyntax.Block{Type: "terraform"},
+		}
+		if bs.Less(0, 1) {
+			t.Error("equal no-label blocks should not be Less")
+		}
+	})
+
+	/*********************************************************************/
+	// Same type, first label differs: label ordering determines result.
+	/*********************************************************************/
+
+	t.Run("same type first label differs", func(t *testing.T) {
+		bs := BlockListSorter{
+			&hclsyntax.Block{Type: "resource", Labels: []string{"aws_s3_bucket", "beta"}},
+			&hclsyntax.Block{Type: "resource", Labels: []string{"aws_s3_bucket", "alpha"}},
+		}
+		// "alpha" < "beta", so block[1] should come before block[0]
+		if !bs.Less(1, 0) {
+			t.Error("alpha label should come before beta label")
+		}
+		if bs.Less(0, 1) {
+			t.Error("beta label should not come before alpha label")
+		}
+	})
+
+	/*********************************************************************/
+	// Same type, same first label, block with fewer labels comes first.
+	// Exercises the len(block1.Labels) < len(block2.Labels) return path.
+	/*********************************************************************/
+
+	t.Run("same type fewer labels comes first", func(t *testing.T) {
+		bs := BlockListSorter{
+			&hclsyntax.Block{Type: "resource", Labels: []string{"aws_s3_bucket"}},
+			&hclsyntax.Block{Type: "resource", Labels: []string{"aws_s3_bucket", "extra"}},
+		}
+		if !bs.Less(0, 1) {
+			t.Error("block with fewer labels should come first")
+		}
+		if bs.Less(1, 0) {
+			t.Error("block with more labels should not come first")
+		}
+	})
+
+	/*********************************************************************/
+	// Same type, identical labels: not Less in either direction.
+	/*********************************************************************/
+
+	t.Run("same type identical labels returns false", func(t *testing.T) {
+		bs := BlockListSorter{
+			&hclsyntax.Block{Type: "resource", Labels: []string{"aws_s3_bucket", "my_bucket"}},
+			&hclsyntax.Block{Type: "resource", Labels: []string{"aws_s3_bucket", "my_bucket"}},
+		}
+		if bs.Less(0, 1) || bs.Less(1, 0) {
+			t.Error("identical blocks should not be Less in either direction")
+		}
+	})
+}
+
 
 func TestGetNodeComment(t *testing.T) {
 
