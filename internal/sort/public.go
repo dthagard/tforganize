@@ -38,6 +38,10 @@ type Params struct {
 // Sort returns an error when a fatal condition is encountered so callers can
 // propagate it and exit non-zero.
 func Sort(target string, settings *Params) error {
+	// Clear the file-lines cache at the start of every run so that files
+	// read in a previous Sort call are not reused across runs.
+	clearLinesCache()
+
 	// Copy settings into the package-level params before any dereference so
 	// that (a) nil settings is safe and (b) we never mutate the caller's struct.
 	if settings != nil {

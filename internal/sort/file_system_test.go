@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/afero"
 )
 
 var (
@@ -236,4 +237,58 @@ func TestGetFilesInFolder(t *testing.T) {
 			t.Errorf("getFilesInFolder() returned nil, expected Error")
 		}
 	})
+}
+
+// countingFs wraps an afero.Fs and counts the number of Open calls.
+type countingFs struct {
+	afero.Fs
+	openCount int
+}
+
+func (c *countingFs) Open(name string) (afero.File, error) {
+	c.openCount++
+	return c.Fs.Open(name)
+}
+
+// TestGetLinesFromFileCache verifies that getLinesFromFile reads each file from
+// the underlying filesystem exactly once per sort run and serves subsequent
+// calls from the in-memory cache.
+func TestGetLinesFromFileCache(t *testing.T) {
+	memFS := afero.NewMemMapFs()
+	counter := &countingFs{Fs: memFS}
+	SetFileSystem(counter)
+	defer SetFileSystem(afero.NewOsFs())
+
+	// Ensure a clean cache for this test.
+	clearLinesCache()
+
+	const path = "/cache_test/main.tf"
+	content := []byte("line1\nline2\nline3\n")
+	if err := afero.WriteFile(memFS, path, content, 0644); err != nil {
+		t.Fatalf("could not write test file: %v", err)
+	}
+
+	// First call — must read from the filesystem.
+	lines1, err := getLinesFromFile(path)
+	if err != nil {
+		t.Fatalf("first getLinesFromFile returned error: %v", err)
+	}
+
+	// Second call — must be served from cache (no additional Open).
+	lines2, err := getLinesFromFile(path)
+	if err != nil {
+		t.Fatalf("second getLinesFromFile returned error: %v", err)
+	}
+
+	if counter.openCount != 1 {
+		t.Errorf("expected exactly 1 Open call, got %d", counter.openCount)
+	}
+
+	expected := []string{"line1", "line2", "line3"}
+	if !reflect.DeepEqual(lines1, expected) {
+		t.Errorf("getLinesFromFile returned %v, expected %v", lines1, expected)
+	}
+	if !reflect.DeepEqual(lines1, lines2) {
+		t.Errorf("cache returned different result: first=%v second=%v", lines1, lines2)
+	}
 }
