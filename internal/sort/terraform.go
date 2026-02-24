@@ -18,10 +18,28 @@ const defaultFileGroup = "main.tf"
 //   - https://developer.hashicorp.com/terraform/language/modules/develop/refactoring
 //   - https://developer.hashicorp.com/terraform/language/import
 var (
+	// fileGroups maps block types to the canonical output file name used when
+	// --group-by-type is enabled. Block types not listed here fall back to
+	// defaultFileGroup ("main.tf").
+	//
+	// Default file name mapping:
+	//   check     → checks.tf
+	//   data      → data.tf
+	//   import    → imports.tf
+	//   locals    → locals.tf
+	//   moved     → main.tf  (refactoring blocks live alongside resources)
+	//   output    → outputs.tf
+	//   removed   → main.tf  (refactoring blocks live alongside resources)
+	//   terraform → versions.tf
+	//   variable  → variables.tf
 	fileGroups = map[string]string{
+		"check":     "checks.tf",
 		"data":      "data.tf",
+		"import":    "imports.tf",
 		"locals":    "locals.tf",
+		"moved":     "main.tf",
 		"output":    "outputs.tf",
+		"removed":   "main.tf",
 		"terraform": "versions.tf",
 		"variable":  "variables.tf",
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/spf13/afero"
@@ -236,6 +237,88 @@ func testSortFile(path string, t *testing.T) {
 			t.Errorf("sortFile(%s) did not match the expected sorted file", fileName)
 		}
 	}
+}
+
+// TestGroupByTypeFileRouting verifies that sortFile routes each block type to
+// the expected output file when --group-by-type is enabled.
+//
+// Specifically it asserts:
+//   - import blocks  → imports.tf
+//   - check blocks   → checks.tf
+//   - moved blocks   → main.tf
+//   - removed blocks → main.tf
+func TestGroupByTypeFileRouting(t *testing.T) {
+	memFS := afero.NewMemMapFs()
+	SetFileSystem(memFS)
+	defer SetFileSystem(afero.NewOsFs())
+
+	const inputPath = "/testrouting/main.tf"
+	_ = memFS.MkdirAll("/testrouting", 0755)
+	_ = afero.WriteFile(memFS, inputPath, []byte(`check "health_check" {
+  assert {
+    condition     = true
+    error_message = "Health check failed"
+  }
+}
+
+import {
+  to = aws_instance.example
+  id = "i-abcdef0123456789"
+}
+
+moved {
+  from = aws_instance.old
+  to   = aws_instance.new
+}
+
+removed {
+  from = aws_instance.removed
+  lifecycle {
+    destroy = false
+  }
+}
+`), 0644)
+
+	initParams()
+	params.GroupByType = true
+
+	results, err := sortFile(inputPath)
+	if err != nil {
+		t.Fatalf("sortFile returned unexpected error: %v", err)
+	}
+
+	wantKeys := map[string]string{
+		"checks.tf":  "check",
+		"imports.tf": "import",
+		"main.tf":    "moved",
+	}
+
+	for file, blockType := range wantKeys {
+		content, ok := results[file]
+		if !ok {
+			t.Errorf("expected output key %q not found in results; got keys: %v", file, mapKeys(results))
+			continue
+		}
+		if !strings.Contains(string(content), blockType) {
+			t.Errorf("%s: expected to contain %q block, got:\n%s", file, blockType, string(content))
+		}
+	}
+
+	// removed also routes to main.tf alongside moved
+	if content, ok := results["main.tf"]; ok {
+		if !strings.Contains(string(content), "removed") {
+			t.Errorf("main.tf: expected to contain removed block, got:\n%s", string(content))
+		}
+	}
+}
+
+// mapKeys returns the keys of a map[string][]byte as a slice for error messages.
+func mapKeys(m map[string][]byte) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 // setParams is a helper function for testSortFile
