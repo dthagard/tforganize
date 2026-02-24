@@ -267,6 +267,7 @@ func TestGetNodeComment(t *testing.T) {
 			t.Errorf("getNodeComment() = %v, want empty slice", result)
 		}
 	})
+}
 
 func TestParseHclFileUsesInjectedFileSystem(t *testing.T) {
 	// Save and restore the original filesystem
