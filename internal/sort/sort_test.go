@@ -11,6 +11,39 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// TestSortNilSettings verifies that Sort does not panic when settings is nil.
+func TestSortNilSettings(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("Sort panicked with nil settings: %v", r)
+		}
+	}()
+	initParams()
+	// A nonexistent target causes a logged error; the important thing is no panic.
+	Sort("nonexistent-path-that-does-not-exist", nil)
+}
+
+// TestSortInlineDoesNotMutateSettings verifies that Sort with Inline=true does
+// not overwrite the caller's Params.OutputDir.
+func TestSortInlineDoesNotMutateSettings(t *testing.T) {
+	// Use an in-memory filesystem so Sort can actually process a file.
+	memFS := afero.NewMemMapFs()
+	SetFileSystem(memFS)
+	defer SetFileSystem(afero.NewOsFs())
+
+	const target = "/testinline"
+	_ = memFS.MkdirAll(target, 0755)
+	_ = afero.WriteFile(memFS, filepath.Join(target, "main.tf"), []byte("resource \"aws_s3_bucket\" \"b\" {}\n"), 0644)
+
+	initParams()
+	settings := &Params{Inline: true}
+	Sort(target, settings)
+
+	if settings.OutputDir != "" {
+		t.Fatalf("Sort mutated caller's OutputDir: got %q, want empty string", settings.OutputDir)
+	}
+}
+
 const (
 	sortedDir   = "sorted"
 	testDataDir = "testdata"
