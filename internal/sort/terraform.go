@@ -12,6 +12,11 @@ const defaultFileGroup = "main.tf"
 // The "post" arguments are the ones that should be last inside of a block.
 // If a block type doesn't have meta arguments, the "default" ones are used.
 // Pre meta arguments should be sorted in the order they should appear in the block.
+//
+// Sources:
+//   - https://developer.hashicorp.com/terraform/language/resources/syntax
+//   - https://developer.hashicorp.com/terraform/language/modules/develop/refactoring
+//   - https://developer.hashicorp.com/terraform/language/import
 var (
 	fileGroups = map[string]string{
 		"data":      "data.tf",
@@ -34,8 +39,10 @@ var (
 			"pre":  []string{"for_each"},
 			"post": []string{},
 		},
+		// import block: https://developer.hashicorp.com/terraform/language/import
+		// Required: to, id. Optional: provider.
 		"import": {
-			"pre":  []string{"provider"},
+			"pre":  []string{"to", "id", "provider"},
 			"post": []string{},
 		},
 		"local": {
@@ -45,6 +52,18 @@ var (
 		"module": {
 			"pre":  []string{"source", "version", "providers", "count", "for_each"},
 			"post": []string{"depends_on"},
+		},
+		// moved block: https://developer.hashicorp.com/terraform/language/modules/develop/refactoring
+		// Required: from, to.
+		"moved": {
+			"pre":  []string{"from", "to"},
+			"post": []string{},
+		},
+		// removed block: https://developer.hashicorp.com/terraform/language/resources/syntax#removing-resources
+		// Required: from (attribute), lifecycle (nested block with destroy bool).
+		"removed": {
+			"pre":  []string{"from"},
+			"post": []string{"lifecycle"},
 		},
 		"resource": {
 			"pre":  []string{"count", "for_each", "provider"},
