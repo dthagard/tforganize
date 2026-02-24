@@ -122,6 +122,30 @@ Key fields:
 
 ## Automation examples
 
+### GitHub Actions
+
+```yaml
+name: Terraform hygiene
+
+on:
+  pull_request:
+
+jobs:
+  tforganize:
+    runs-on: ubuntu-latest
+    container: ghcr.io/dthagard/tforganize/tforganize:latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          tforganize sort --inline "$TF_ROOT"
+          git diff --quiet || {
+            echo "tforganize found drift";
+            exit 1;
+          }
+    env:
+      TF_ROOT: infrastructure
+```
+
 ### GitLab CI
 
 ```yaml
@@ -143,24 +167,66 @@ terraform:lint:
     TF_ROOT: infrastructure
 ```
 
+### CircleCI
+
+```yaml
+version: 2.1
+
+executors:
+  tforganize:
+    docker:
+      - image: ghcr.io/dthagard/tforganize/tforganize:latest
+
+jobs:
+  lint:
+    executor: tforganize
+    steps:
+      - checkout
+      - run: tforganize sort --inline "$TF_ROOT"
+      - run: git diff --quiet || { echo "tforganize found drift"; exit 1; }
+
+workflows:
+  version: 2
+  terraform:
+    jobs:
+      - lint
+```
+
+### Azure Pipelines
+
+```yaml
+trigger:
+  branches:
+    include: [ main ]
+
+pool:
+  vmImage: ubuntu-latest
+
+container: ghcr.io/dthagard/tforganize/tforganize:latest
+
+steps:
+  - checkout: self
+  - script: |
+      tforganize sort --inline $(TF_ROOT)
+      git diff --quiet || exit 1
+    displayName: Run tforganize
+```
+
 ### Makefile loop
 
 ```make
 TF_DIRS := $(shell find . -type d -not -path '*/.terraform/*')
 
 tforganize-all:
-	@for dir in $(TF_DIRS); do \
-	  echo "Organizing $$dir"; \
-	  tforganize sort --inline $$dir; \
-	done
+	@for dir in $(TF_DIRS); do 	  echo "Organizing $$dir"; 	  tforganize sort --inline $$dir; 	done
 ```
 
 ### Docker one-liner
 
 ```bash
-docker run --rm -v "$(pwd)":/tforganize -w /tforganize \
-  ghcr.io/dthagard/tforganize/tforganize:latest sort -i .
+docker run --rm -v "$(pwd)":/tforganize -w /tforganize   ghcr.io/dthagard/tforganize/tforganize:latest sort -i .
 ```
+
 
 ## Contributing & support
 
