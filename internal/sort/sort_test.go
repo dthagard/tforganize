@@ -30,18 +30,16 @@ func TestSortNilSettings(t *testing.T) {
 // TestSortInlineDoesNotMutateSettings verifies that Sort with Inline=true does
 // not overwrite the caller's Params.OutputDir.
 func TestSortInlineDoesNotMutateSettings(t *testing.T) {
-	// Use an in-memory filesystem so Sort can actually process a file.
+	// Use an in-memory filesystem so the Sorter can actually process a file.
 	memFS := afero.NewMemMapFs()
-	SetFileSystem(memFS)
-	defer SetFileSystem(afero.NewOsFs())
 
 	const target = "/testinline"
 	_ = memFS.MkdirAll(target, 0755)
 	_ = afero.WriteFile(memFS, filepath.Join(target, "main.tf"), []byte("resource \"aws_s3_bucket\" \"b\" {}\n"), 0644)
 
-	initParams()
 	settings := &Params{Inline: true}
-	if err := Sort(target, settings); err != nil {
+	s := NewSorter(settings, memFS)
+	if err := s.run(target); err != nil {
 		t.Fatalf("Sort returned unexpected error: %v", err)
 	}
 
@@ -95,15 +93,13 @@ func TestSortErrorPaths(t *testing.T) {
 
 	t.Run("keep-header with valid has-header and header-pattern does not error on validation", func(t *testing.T) {
 		memFS := afero.NewMemMapFs()
-		SetFileSystem(memFS)
-		defer SetFileSystem(afero.NewOsFs())
 
 		const target = "/valid-keep-header"
 		_ = memFS.MkdirAll(target, 0755)
 		_ = afero.WriteFile(memFS, filepath.Join(target, "main.tf"), []byte("resource \"aws_s3_bucket\" \"b\" {}\n"), 0644)
 
-		initParams()
-		err := Sort(target, &Params{KeepHeader: true, HasHeader: true, HeaderPattern: "# header"})
+		s := NewSorter(&Params{KeepHeader: true, HasHeader: true, HeaderPattern: "# header"}, memFS)
+		err := s.run(target)
 		// The validation should pass; any error here is from processing, not param validation.
 		if err != nil && err.Error() == "keep-header requires has-header=true and a non-empty header-pattern" {
 			t.Fatal("Sort incorrectly rejected valid keep-header params")
@@ -112,15 +108,13 @@ func TestSortErrorPaths(t *testing.T) {
 
 	t.Run("sortFiles failure via stub", func(t *testing.T) {
 		memFS := afero.NewMemMapFs()
-		SetFileSystem(memFS)
-		defer SetFileSystem(afero.NewOsFs())
 
 		const target = "/bad-hcl"
 		_ = memFS.MkdirAll(target, 0755)
 		_ = afero.WriteFile(memFS, filepath.Join(target, "bad.tf"), []byte("this is not { valid HCL\n"), 0644)
 
-		initParams()
-		err := Sort(target, nil)
+		s := NewSorter(nil, memFS)
+		err := s.run(target)
 		if err == nil {
 			t.Fatal("expected error when sortFiles encounters invalid HCL, got nil")
 		}
@@ -200,20 +194,17 @@ func TestSortFile(t *testing.T) {
 func testSortFile(path string, t *testing.T) {
 	t.Helper()
 
-	// Reset params to defaults so state from a previous test case doesn't bleed in.
-	initParams()
+	p := &Params{}
+	if err := setParams(path, p); err != nil {
+		t.Fatalf("could not set params: %v", err)
+	}
+	p.OutputDir = filepath.Join("./scratch", path)
 
 	// Get the files in the unsorted directory
 	unsortedFiles, err := AFS.ReadDir(filepath.Join(path, unsortedDir))
 	if err != nil {
 		t.Fatalf("could not read unsorted directory: %v", err)
 	}
-
-	// Set the params
-	if err := setParams(path); err != nil {
-		t.Fatalf("could not set params: %v", err)
-	}
-	params.OutputDir = filepath.Join("./scratch", path)
 
 	// Check each file if sorted correctly
 	for _, file := range unsortedFiles {
@@ -228,7 +219,8 @@ func testSortFile(path string, t *testing.T) {
 
 		// Sort the unsorted file
 		unsortedFilePath := filepath.Join(path, unsortedDir, fileName)
-		results, err := sortFile(unsortedFilePath)
+		s := NewSorter(p, afero.NewOsFs())
+		results, err := s.sortFile(unsortedFilePath)
 		if err != nil {
 			t.Fatalf("sortFile(%s) returned unexpected error: %v", unsortedFilePath, err)
 		}
@@ -250,8 +242,6 @@ func testSortFile(path string, t *testing.T) {
 //   - removed blocks → main.tf
 func TestGroupByTypeFileRouting(t *testing.T) {
 	memFS := afero.NewMemMapFs()
-	SetFileSystem(memFS)
-	defer SetFileSystem(afero.NewOsFs())
 
 	const inputPath = "/testrouting/main.tf"
 	_ = memFS.MkdirAll("/testrouting", 0755)
@@ -280,10 +270,8 @@ removed {
 }
 `), 0644)
 
-	initParams()
-	params.GroupByType = true
-
-	results, err := sortFile(inputPath)
+	s := NewSorter(&Params{GroupByType: true}, memFS)
+	results, err := s.sortFile(inputPath)
 	if err != nil {
 		t.Fatalf("sortFile returned unexpected error: %v", err)
 	}
@@ -323,14 +311,14 @@ func mapKeys(m map[string][]byte) []string {
 }
 
 // setParams is a helper function for testSortFile
-func setParams(path string) error {
+func setParams(path string, p *Params) error {
 	configFile := filepath.Join(path, ".tforganize.yaml")
 	if ok, _ := AFS.Exists(configFile); ok {
 		config, err := AFS.ReadFile(configFile)
 		if err != nil {
 			return fmt.Errorf("could not read config file: %s", configFile)
 		}
-		if err := yaml.Unmarshal(config, params); err != nil {
+		if err := yaml.Unmarshal(config, p); err != nil {
 			return fmt.Errorf("could not unmarshal config file: %s", configFile)
 		}
 	}
@@ -345,9 +333,9 @@ func TestGetLineSlice(t *testing.T) {
 	/*********************************************************************/
 
 	t.Run("middle line unchanged", func(t *testing.T) {
-		initParams()
+		s := NewSorter(&Params{}, afero.NewMemMapFs())
 		line := `  some_attr = "value"`
-		result := getLineSlice(line, 0, 5, 2, 3, 20)
+		result := s.getLineSlice(line, 0, 5, 2, 3, 20)
 		if result != line {
 			t.Errorf("got %q, want %q", result, line)
 		}
@@ -358,10 +346,10 @@ func TestGetLineSlice(t *testing.T) {
 	/*********************************************************************/
 
 	t.Run("start line truncated from startCol", func(t *testing.T) {
-		initParams()
+		s := NewSorter(&Params{}, afero.NewMemMapFs())
 		line := `  some_attr = "value"`
 		// startCol=3: remove the first 2 chars (the leading spaces)
-		result := getLineSlice(line, 1, 1, 1, 3, 22)
+		result := s.getLineSlice(line, 1, 1, 1, 3, 22)
 		expected := `some_attr = "value"`
 		if result != expected {
 			t.Errorf("got %q, want %q", result, expected)
@@ -373,10 +361,9 @@ func TestGetLineSlice(t *testing.T) {
 	/*********************************************************************/
 
 	t.Run("remove_comments blanks comment line", func(t *testing.T) {
-		initParams()
-		params.RemoveComments = true
+		s := NewSorter(&Params{RemoveComments: true}, afero.NewMemMapFs())
 		line := "# this is a comment"
-		result := getLineSlice(line, 5, 5, 5, 1, 20)
+		result := s.getLineSlice(line, 5, 5, 5, 1, 20)
 		if result != "" {
 			t.Errorf("got %q, want %q", result, "")
 		}
@@ -393,10 +380,9 @@ func TestGetLineSlice(t *testing.T) {
 	/*********************************************************************/
 
 	t.Run("remove_comments single-line truncates inline comment", func(t *testing.T) {
-		initParams()
-		params.RemoveComments = true
+		s := NewSorter(&Params{RemoveComments: true}, afero.NewMemMapFs())
 		line := `  foo = "bar" # inline`
-		result := getLineSlice(line, 1, 1, 1, 3, 14)
+		result := s.getLineSlice(line, 1, 1, 1, 3, 14)
 		expected := `foo = "bar"`
 		if result != expected {
 			t.Errorf("got %q, want %q", result, expected)
@@ -414,10 +400,9 @@ func TestGetLineSlice(t *testing.T) {
 	/*********************************************************************/
 
 	t.Run("remove_comments multi-line end line truncates at endCol-1", func(t *testing.T) {
-		initParams()
-		params.RemoveComments = true
+		s := NewSorter(&Params{RemoveComments: true}, afero.NewMemMapFs())
 		line := `  "bar" # inline`
-		result := getLineSlice(line, 1, 3, 3, 3, 8)
+		result := s.getLineSlice(line, 1, 3, 3, 3, 8)
 		expected := `  "bar"`
 		if result != expected {
 			t.Errorf("got %q, want %q", result, expected)

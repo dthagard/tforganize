@@ -1,7 +1,6 @@
 package sort
 
 import (
-	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 )
 
@@ -20,7 +19,8 @@ func GetCommand() *cobra.Command {
 		Use:   "sort <file | folder>",
 	}
 
-	SetFileSystem(afero.NewOsFs())
+	// NOTE: SetFileSystem() call removed — Sort() now creates its own
+	// filesystem internally via NewSorter.
 
 	setFlags(cmd)
 
@@ -35,4 +35,5 @@ func setFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().BoolVarP(&flags.Inline, "inline", "i", false, "sort the resources in the input file(s) in place")
 	cmd.PersistentFlags().StringVarP(&flags.OutputDir, "output-dir", "o", "", "output the results to a specific folder")
 	cmd.PersistentFlags().BoolVarP(&flags.RemoveComments, "remove-comments", "r", false, "remove comments in the sorted file(s)")
+	cmd.PersistentFlags().BoolVarP(&flags.Check, "check", "c", false, "check whether files are already sorted without writing changes; exits non-zero if any file would change")
 }

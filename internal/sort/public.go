@@ -1,14 +1,16 @@
 package sort
 
 import (
-	"fmt"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 )
 
 // Params represents the parameters for the sort command.
 type Params struct {
+	// If the check flag is set, the sort command will not write any files.
+	// Instead it reports which files would change and exits non-zero.
+	// Conflicts with the output-dir flag.
+	Check bool `yaml:"check"`
 	// If the group-by-type flag is set, the resources will be grouped by type in the output files.
 	// Otherwise, the resources will be sorted alphabetically ascending by resource type and name in the existing files.
 	// Conflicts with the inline flag.
@@ -38,67 +40,15 @@ type Params struct {
 // Sort returns an error when a fatal condition is encountered so callers can
 // propagate it and exit non-zero.
 func Sort(target string, settings *Params) error {
-	// Clear the file-lines cache at the start of every run so that files
-	// read in a previous Sort call are not reused across runs.
-	clearLinesCache()
-
-	// Copy settings into the package-level params before any dereference so
-	// that (a) nil settings is safe and (b) we never mutate the caller's struct.
-	if settings != nil {
-		log.WithField("settings", settings).Debugln("Found settings")
-		*params = *settings
-	}
-
-	// Check the parameters for inconsistencies
-	if params.Inline && (params.GroupByType || params.OutputDir != "") {
-		return fmt.Errorf("the inline flag conflicts with the group-by-type and output-dir flags")
-	}
-
-	if params.KeepHeader && (!params.HasHeader || params.HeaderPattern == "") {
-		return fmt.Errorf("keep-header requires has-header=true and a non-empty header-pattern")
-	}
-
-	log.WithField("target", target).Traceln("Starting sort")
-	log.WithField("params", params).Debugln("Using params for SortFiles")
-
-	// Get files from target
-	files, err := getFilesFromTarget(target)
-	if err != nil {
-		return fmt.Errorf("could not get files from target: %w", err)
-	}
-
-	// Sort the files
-	sortedFiles, err := sortFiles(files)
-	if err != nil {
-		return fmt.Errorf("could not sort files: %w", err)
-	}
-
-	// Write the sorted files to the target directory if the inline flag is set
-	if params.Inline {
-		params.OutputDir, err = getDirectory(target)
-		if err != nil {
-			return fmt.Errorf("could not get directory for the target: %w", err)
-		}
-	}
-
-	// Output the sorted files
-	if params.OutputDir != "" {
-		if err := writeFiles(sortedFiles); err != nil {
-			return fmt.Errorf("could not write files: %w", err)
-		}
-	} else {
-		for _, body := range sortedFiles {
-			fmt.Println(string(body))
-		}
-	}
-
-	return nil
+	s := NewSorter(settings, afero.NewOsFs())
+	return s.run(target)
 }
 
-// SetFileSystem sets the filesystem to use for the Sort command
+// Deprecated: SetFileSystem sets the package-level filesystem used by the
+// legacy Sort() wrapper. New callers should use NewSorter(params, fs) directly.
+// This function will be removed in a future release.
 func SetFileSystem(fs afero.Fs) {
 	log.WithField("fs", fs).Traceln("Starting SetFileSystem")
-
 	FS = fs
 	AFS = &afero.Afero{Fs: FS}
 }
