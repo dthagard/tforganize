@@ -13,16 +13,32 @@ import (
 )
 
 var (
-	AFS        *afero.Afero
-	FS         afero.Fs
+	// Deprecated: AFS is the package-level afero helper. New callers should use
+	// NewSorter(params, fs) and access the filesystem via the Sorter instead.
+	// This variable will be removed in a future release.
+	AFS *afero.Afero
+
+	// Deprecated: FS is the package-level afero filesystem. New callers should use
+	// NewSorter(params, fs) and access the filesystem via the Sorter instead.
+	// This variable will be removed in a future release.
+	FS afero.Fs
+
+	// Deprecated: linesCache is the package-level file-lines cache. New callers
+	// should use NewSorter(params, fs); per-run caching is now owned by Sorter.
+	// This variable will be removed in a future release.
 	linesCache = map[string][]string{}
 )
 
-// clearLinesCache resets the per-run file-lines cache.
+// Deprecated: clearLinesCache resets the deprecated package-level file-lines cache.
+// Per-run caching is now owned by Sorter.linesCache.
+// This function will be removed in a future release.
 func clearLinesCache() {
 	linesCache = map[string][]string{}
 }
 
+// Deprecated: initFileSystem initialises the deprecated package-level FS and AFS variables.
+// New callers should use NewSorter(params, fs) instead.
+// This function will be removed in a future release.
 func initFileSystem() {
 	log.Traceln("Starting initFileSystem")
 	FS = afero.NewOsFs()
@@ -30,10 +46,10 @@ func initFileSystem() {
 }
 
 // getFilesFromTarget returns a list of files to sort.
-func getFilesFromTarget(target string) ([]string, error) {
+func (s *Sorter) getFilesFromTarget(target string) ([]string, error) {
 	log.WithField("target", target).Traceln("Starting getFilesFromTarget")
 
-	targetInfo, err := getPathInfo(target)
+	targetInfo, err := s.getPathInfo(target)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +57,7 @@ func getFilesFromTarget(target string) ([]string, error) {
 	files := []string{target}
 	if targetInfo.IsDir() {
 		log.Debugln("target is a directory")
-		files, err = getFilesInFolder(target)
+		files, err = s.getFilesInFolder(target)
 		if err != nil {
 			return nil, fmt.Errorf("could not get files in folder: %w", err)
 		}
@@ -50,11 +66,11 @@ func getFilesFromTarget(target string) ([]string, error) {
 	return files, nil
 }
 
-// Get the filesystem info for a given target
-func getPathInfo(path string) (fs.FileInfo, error) {
+// getPathInfo returns the filesystem info for a given path.
+func (s *Sorter) getPathInfo(path string) (fs.FileInfo, error) {
 	log.WithField("path", path).Traceln("Starting getPathInfo")
 
-	info, err := AFS.Fs.Stat(path)
+	info, err := s.fs.Stat(path)
 	if err != nil {
 		return nil, fmt.Errorf("could not get target info: %w", err)
 	}
@@ -62,11 +78,11 @@ func getPathInfo(path string) (fs.FileInfo, error) {
 	return info, nil
 }
 
-// Get the directory info for a given target
-func getDirectory(path string) (string, error) {
+// getDirectory returns the directory for a given path.
+func (s *Sorter) getDirectory(path string) (string, error) {
 	log.WithField("path", path).Traceln("Starting getDirInfo")
 
-	info, err := getPathInfo(path)
+	info, err := s.getPathInfo(path)
 	if err != nil {
 		return "", err
 	}
@@ -82,10 +98,10 @@ func getDirectory(path string) (string, error) {
 }
 
 // getFilesInFolder returns a list of files in a folder.
-func getFilesInFolder(path string) ([]string, error) {
+func (s *Sorter) getFilesInFolder(path string) ([]string, error) {
 	log.WithField("path", path).Traceln("Starting getFilesInFolder")
 
-	files, err := AFS.ReadDir(path)
+	files, err := s.afs.ReadDir(path)
 	if err != nil {
 		return nil, fmt.Errorf("could not read the directory: %w", err)
 	}
@@ -102,16 +118,16 @@ func getFilesInFolder(path string) ([]string, error) {
 }
 
 // getLinesFromFile returns a list of lines from a file.
-// Results are cached for the duration of the current sort run.
-func getLinesFromFile(filename string) ([]string, error) {
+// Results are cached in s.linesCache for the duration of the current sort run.
+func (s *Sorter) getLinesFromFile(filename string) ([]string, error) {
 	log.WithField("filename", filename).Traceln("Starting getLinesFromFile")
 
-	if lines, ok := linesCache[filename]; ok {
+	if lines, ok := s.linesCache[filename]; ok {
 		log.WithField("filename", filename).Traceln("getLinesFromFile cache hit")
 		return lines, nil
 	}
 
-	file, err := AFS.Open(filename)
+	file, err := s.afs.Open(filename)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +144,7 @@ func getLinesFromFile(filename string) ([]string, error) {
 		return nil, err
 	}
 
-	linesCache[filename] = lines
+	s.linesCache[filename] = lines
 	return lines, nil
 }
 
@@ -140,14 +156,14 @@ func getFileNameFromPath(path string) string {
 }
 
 // combineFiles combines a list of files into a single file.
-func combineFiles(inputFilePaths []string) (string, error) {
+func (s *Sorter) combineFiles(inputFilePaths []string) (string, error) {
 	log.WithField("inputFilePaths", inputFilePaths).Traceln("Starting combineFiles")
 
 	// Create temporary file path
-	tempDir := AFS.GetTempDir("tforganize/")
+	tempDir := s.afs.GetTempDir("tforganize/")
 
 	// Create the output file
-	outputFile, err := AFS.TempFile(tempDir, fmt.Sprintf("%v.tf", os.Getuid()))
+	outputFile, err := s.afs.TempFile(tempDir, fmt.Sprintf("%v.tf", os.Getuid()))
 	if err != nil {
 		return "", fmt.Errorf("could not create temporary file: %w", err)
 	}
@@ -156,7 +172,7 @@ func combineFiles(inputFilePaths []string) (string, error) {
 	var buffer []byte
 	// Iterate over the input file paths
 	for _, inputPath := range inputFilePaths {
-		inputFileBytes, err := AFS.ReadFile(inputPath)
+		inputFileBytes, err := s.afs.ReadFile(inputPath)
 		if err != nil {
 			return "", fmt.Errorf("could not read file: %w", err)
 		}
@@ -171,20 +187,20 @@ func combineFiles(inputFilePaths []string) (string, error) {
 	return outputFile.Name(), nil
 }
 
-// writeFiles writes all of the processed files to the filesystem
-func writeFiles(fileBytes map[string][]byte) error {
+// writeFiles writes all of the processed files to the filesystem.
+func (s *Sorter) writeFiles(fileBytes map[string][]byte) error {
 	log.WithField("fileBytes", fileBytes).Traceln("Starting writeFiles")
 
-	log.WithField("OutputDir", params.OutputDir).Debugln("Creating output directory...")
-	if err := AFS.MkdirAll(params.OutputDir, 0755); err != nil {
+	log.WithField("OutputDir", s.params.OutputDir).Debugln("Creating output directory...")
+	if err := s.afs.MkdirAll(s.params.OutputDir, 0755); err != nil {
 		return fmt.Errorf("could not create the output directory: %w", err)
 	}
 
 	// write bytes to the file
 	for k, v := range fileBytes {
-		fileName := filepath.Join(params.OutputDir, getFileNameFromPath(k))
+		fileName := filepath.Join(s.params.OutputDir, getFileNameFromPath(k))
 		log.WithField("fileName", fileName).Debugln("Writing to file...")
-		if err := writeFile(fileName, v); err != nil {
+		if err := s.writeFile(fileName, v); err != nil {
 			return fmt.Errorf("could not write to the file: %w", err)
 		}
 	}
@@ -192,13 +208,13 @@ func writeFiles(fileBytes map[string][]byte) error {
 	return nil
 }
 
-// writeFile writes a byte array to a file
-func writeFile(filename string, fileBytes []byte) error {
+// writeFile writes a byte array to a file.
+func (s *Sorter) writeFile(filename string, fileBytes []byte) error {
 	log.WithFields(log.Fields{"filename": filename, "fileBytes": fileBytes}).Traceln("Starting writeFile")
 
 	// create file
 	log.WithField("filename", filename).Debugln("Creating file...")
-	f, err := AFS.Create(filename)
+	f, err := s.afs.Create(filename)
 	if err != nil {
 		return fmt.Errorf("could not create the file: %w", err)
 	}

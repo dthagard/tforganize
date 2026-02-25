@@ -1,6 +1,7 @@
 package sort
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -31,17 +32,17 @@ func TestGetFilesFromTarget(t *testing.T) {
 
 	t.Run("directory with one file", func(t *testing.T) {
 		testDir := t.TempDir()
-		AFS.MkdirAll(testDir, 0755)
+		s := NewSorter(&Params{}, afero.NewOsFs())
 
 		// Create a file in the directory
-		foo, err := AFS.Create((filepath.Join(testDir, testFiles[0])))
+		foo, err := os.Create(filepath.Join(testDir, testFiles[0]))
 		if err != nil {
 			log.WithError(err).Errorln("could not create file")
 		}
 		defer foo.Close()
 
 		// Get files from target
-		result, err := getFilesFromTarget(testDir)
+		result, err := s.getFilesFromTarget(testDir)
 		if err != nil {
 			log.WithError(err).Errorln("could not get files from target")
 		}
@@ -57,17 +58,17 @@ func TestGetFilesFromTarget(t *testing.T) {
 
 	t.Run("single file", func(t *testing.T) {
 		testDir := t.TempDir()
-		AFS.MkdirAll(testDir, 0755)
+		s := NewSorter(&Params{}, afero.NewOsFs())
 
 		// Create a file in the directory
-		bar, err := AFS.Create(filepath.Join(testDir, testFiles[1]))
+		bar, err := os.Create(filepath.Join(testDir, testFiles[1]))
 		if err != nil {
 			log.WithError(err).Errorln("could not create file")
 		}
 		defer bar.Close()
 
 		// Get files from target
-		result, err := getFilesFromTarget(filepath.Join(testDir, testFiles[1]))
+		result, err := s.getFilesFromTarget(filepath.Join(testDir, testFiles[1]))
 		if err != nil {
 			log.WithError(err).Errorln("could not get file from target")
 		}
@@ -83,29 +84,29 @@ func TestGetFilesFromTarget(t *testing.T) {
 
 	t.Run("directory with multiple files", func(t *testing.T) {
 		testDir := t.TempDir()
-		AFS.MkdirAll(testDir, 0755)
+		s := NewSorter(&Params{}, afero.NewOsFs())
 
 		// Create files in the directory
-		foo, err := AFS.Create((filepath.Join(testDir, testFiles[0])))
+		foo, err := os.Create(filepath.Join(testDir, testFiles[0]))
 		if err != nil {
 			log.WithError(err).Errorln("could not create file")
 		}
 		defer foo.Close()
 
-		bar, err := AFS.Create(filepath.Join(testDir, testFiles[1]))
+		bar, err := os.Create(filepath.Join(testDir, testFiles[1]))
 		if err != nil {
 			log.WithError(err).Errorln("could not create file")
 		}
 		defer bar.Close()
 
-		baz, err := AFS.Create(filepath.Join(testDir, testFiles[2]))
+		baz, err := os.Create(filepath.Join(testDir, testFiles[2]))
 		if err != nil {
 			log.WithError(err).Errorln("could not create file")
 		}
 		defer baz.Close()
 
 		// Get files from target
-		result, err := getFilesFromTarget(testDir)
+		result, err := s.getFilesFromTarget(testDir)
 		if err != nil {
 			log.WithError(err).Errorln("could not get files from target")
 		}
@@ -128,10 +129,10 @@ func TestGetFilesFromTarget(t *testing.T) {
 
 	t.Run("non-existent file", func(t *testing.T) {
 		testDir := t.TempDir()
-		AFS.MkdirAll(testDir, 0755)
+		s := NewSorter(&Params{}, afero.NewOsFs())
 
 		// Get files from target
-		if _, err := getFilesFromTarget(filepath.Join(testDir, "non-existent-file")); err == nil {
+		if _, err := s.getFilesFromTarget(filepath.Join(testDir, "non-existent-file")); err == nil {
 			t.Errorf("getFilesFromTarget() returned nil, expected error")
 		}
 	})
@@ -146,10 +147,10 @@ func TestGetFilesInFolder(t *testing.T) {
 
 	t.Run("directory with no files", func(t *testing.T) {
 		testDir := t.TempDir()
-		AFS.MkdirAll(testDir, 0755)
+		s := NewSorter(&Params{}, afero.NewOsFs())
 
 		// Get files from target
-		result, err := getFilesInFolder(testDir)
+		result, err := s.getFilesInFolder(testDir)
 		if err != nil {
 			log.WithError(err).Errorln("could not get files from target")
 		}
@@ -164,17 +165,17 @@ func TestGetFilesInFolder(t *testing.T) {
 
 	t.Run("directory with one file", func(t *testing.T) {
 		testDir := t.TempDir()
-		AFS.MkdirAll(testDir, 0755)
+		s := NewSorter(&Params{}, afero.NewOsFs())
 
 		// Create a file in the directory
-		foo, err := AFS.Create((filepath.Join(testDir, testFiles[0])))
+		foo, err := os.Create(filepath.Join(testDir, testFiles[0]))
 		if err != nil {
 			log.WithError(err).Errorln("could not create file")
 		}
 		defer foo.Close()
 
 		// Get files from target
-		result, err := getFilesInFolder(testDir)
+		result, err := s.getFilesInFolder(testDir)
 		if err != nil {
 			log.WithError(err).Errorln("could not get files from target")
 		}
@@ -189,29 +190,29 @@ func TestGetFilesInFolder(t *testing.T) {
 
 	t.Run("directory with multiple files", func(t *testing.T) {
 		testDir := t.TempDir()
-		AFS.MkdirAll(testDir, 0755)
+		s := NewSorter(&Params{}, afero.NewOsFs())
 
 		// Create files in the directory
-		foo, err := AFS.Create(filepath.Join(testDir, testFiles[0]))
+		foo, err := os.Create(filepath.Join(testDir, testFiles[0]))
 		if err != nil {
 			log.WithError(err).Errorln("could not create file")
 		}
 		defer foo.Close()
 
-		bar, err := AFS.Create(filepath.Join(testDir, testFiles[1]))
+		bar, err := os.Create(filepath.Join(testDir, testFiles[1]))
 		if err != nil {
 			log.WithError(err).Errorln("could not create file")
 		}
 		defer bar.Close()
 
-		baz, err := AFS.Create(filepath.Join(testDir, testFiles[2]))
+		baz, err := os.Create(filepath.Join(testDir, testFiles[2]))
 		if err != nil {
 			log.WithError(err).Errorln("could not create file")
 		}
 		defer baz.Close()
 
 		// Get files from target
-		result, err := getFilesInFolder(testDir)
+		result, err := s.getFilesInFolder(testDir)
 		if err != nil {
 			log.WithError(err).Errorln("could not get files from target")
 		}
@@ -232,8 +233,9 @@ func TestGetFilesInFolder(t *testing.T) {
 	/*********************************************************************/
 
 	t.Run("non-existent folder", func(t *testing.T) {
-		// GetgetFilesInFolder() with a  files from target
-		if _, err := getFilesInFolder("non-existent-folder"); err == nil {
+		s := NewSorter(&Params{}, afero.NewOsFs())
+
+		if _, err := s.getFilesInFolder("non-existent-folder"); err == nil {
 			t.Errorf("getFilesInFolder() returned nil, expected Error")
 		}
 	})
@@ -256,11 +258,6 @@ func (c *countingFs) Open(name string) (afero.File, error) {
 func TestGetLinesFromFileCache(t *testing.T) {
 	memFS := afero.NewMemMapFs()
 	counter := &countingFs{Fs: memFS}
-	SetFileSystem(counter)
-	defer SetFileSystem(afero.NewOsFs())
-
-	// Ensure a clean cache for this test.
-	clearLinesCache()
 
 	const path = "/cache_test/main.tf"
 	content := []byte("line1\nline2\nline3\n")
@@ -268,14 +265,16 @@ func TestGetLinesFromFileCache(t *testing.T) {
 		t.Fatalf("could not write test file: %v", err)
 	}
 
+	s := NewSorter(&Params{}, counter)
+
 	// First call — must read from the filesystem.
-	lines1, err := getLinesFromFile(path)
+	lines1, err := s.getLinesFromFile(path)
 	if err != nil {
 		t.Fatalf("first getLinesFromFile returned error: %v", err)
 	}
 
 	// Second call — must be served from cache (no additional Open).
-	lines2, err := getLinesFromFile(path)
+	lines2, err := s.getLinesFromFile(path)
 	if err != nil {
 		t.Fatalf("second getLinesFromFile returned error: %v", err)
 	}

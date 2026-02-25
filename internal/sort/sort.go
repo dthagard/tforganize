@@ -17,15 +17,15 @@ const (
 )
 
 // sortFiles sorts a list of files.
-func sortFiles(files []string) (map[string][]byte, error) {
+func (s *Sorter) sortFiles(files []string) (map[string][]byte, error) {
 	log.WithField("files", files).Traceln("Starting sortFiles")
 
 	// If we are grouping by type, we need to create a combined file
 	// that contains all of the blocks from all of the files.
 	filesToSort := files
-	if params.GroupByType {
+	if s.params.GroupByType {
 		log.Debugln("Creating combined file...")
-		combinedFile, err := combineFiles(files)
+		combinedFile, err := s.combineFiles(files)
 		if err != nil {
 			return nil, fmt.Errorf("could not combine files: %w", err)
 		}
@@ -35,7 +35,7 @@ func sortFiles(files []string) (map[string][]byte, error) {
 
 	output := map[string][]byte{}
 	for _, f := range filesToSort {
-		sortedFileBytes, err := sortFile(f)
+		sortedFileBytes, err := s.sortFile(f)
 		if err != nil {
 			return nil, fmt.Errorf("could not sort file: %w", err)
 		}
@@ -49,16 +49,16 @@ func sortFiles(files []string) (map[string][]byte, error) {
 }
 
 // sortFile sorts a single file into one or more files.
-func sortFile(path string) (map[string][]byte, error) {
+func (s *Sorter) sortFile(path string) (map[string][]byte, error) {
 	log.WithField("path", path).Traceln("Starting sortFile")
 
-	body, err := parseHclFile(path)
+	body, err := s.parseHclFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("could not get body from file: %w", err)
 	}
 
 	log.Debugln("Sorting blocks...")
-	sortedFileBytes, err := sortBlocks(body.Blocks)
+	sortedFileBytes, err := s.sortBlocks(body.Blocks)
 	if err != nil {
 		return nil, fmt.Errorf("could not sort blocks: %w", err)
 	}
@@ -69,9 +69,9 @@ func sortFile(path string) (map[string][]byte, error) {
 	for k, v := range sortedFileBytes {
 		buffer = v
 		// If we are keeping the header, add it back
-		if params.KeepHeader {
+		if s.params.KeepHeader {
 			log.Debugln("Adding header...")
-			buffer = addHeader(buffer)
+			buffer = s.addHeader(buffer)
 		}
 		output[k] = hclwrite.Format(buffer)
 	}
@@ -80,7 +80,7 @@ func sortFile(path string) (map[string][]byte, error) {
 }
 
 // sortBlocks sorts a list of blocks and returns the sorted blocks as a byte array organized by file.
-func sortBlocks(blocks hclsyntax.Blocks) (map[string][]byte, error) {
+func (s *Sorter) sortBlocks(blocks hclsyntax.Blocks) (map[string][]byte, error) {
 	log.WithField("blocks", blocks).Traceln("Starting sortBlocks")
 
 	// Initialize the output
@@ -94,13 +94,13 @@ func sortBlocks(blocks hclsyntax.Blocks) (map[string][]byte, error) {
 		log.WithFields(log.Fields{blockTypeLabel: block.Type, blockLabelsLabel: block.Labels, "block.Body": block.Body}).Debugln("Starting block iteration")
 
 		// Sort the block
-		blockBytes, err := getSortedBlockBytes(block)
+		blockBytes, err := s.getSortedBlockBytes(block)
 		if err != nil {
 			return nil, fmt.Errorf("could not sort block: %w", err)
 		}
 
 		outputKey := getFileNameFromPath(block.TypeRange.Filename)
-		if params.GroupByType {
+		if s.params.GroupByType {
 			outputKey = defaultFileGroup
 			if v, ok := fileGroups[block.Type]; ok {
 				outputKey = v
@@ -114,15 +114,15 @@ func sortBlocks(blocks hclsyntax.Blocks) (map[string][]byte, error) {
 	return output, nil
 }
 
-// getSortedBlockBytes recursively sorts a block based on its attributes and child blocks
-func getSortedBlockBytes(block *hclsyntax.Block) ([]byte, error) {
+// getSortedBlockBytes recursively sorts a block based on its attributes and child blocks.
+func (s *Sorter) getSortedBlockBytes(block *hclsyntax.Block) ([]byte, error) {
 	log.WithFields(log.Fields{blockTypeLabel: block.Type, blockLabelsLabel: block.Labels}).Traceln("Starting getSortedBlockBytes")
 
 	// Sort the block keys
 	keys := getSortedBlockKeys(block)
 
 	// Write the block opening
-	results, err := getBlockOpeningBytes(block)
+	results, err := s.getBlockOpeningBytes(block)
 	if err != nil {
 		return nil, fmt.Errorf("could not get block opening bytes: %w", err)
 	}
@@ -137,7 +137,7 @@ func getSortedBlockBytes(block *hclsyntax.Block) ([]byte, error) {
 		if len(keys[i]) > 0 {
 			log.WithFields(log.Fields{"i": i, "keys[i]": keys[i]}).Debugln("Using keys")
 			buffer = addNewLineIfBufferExists(buffer)
-			blockBytes, err := getBlockBodyBytes(block, keys[i])
+			blockBytes, err := s.getBlockBodyBytes(block, keys[i])
 			if err != nil {
 				return nil, fmt.Errorf("could not append label to output: %w", err)
 			}
@@ -226,7 +226,7 @@ func getSortedBlockKeys(block *hclsyntax.Block) map[int][]string {
 	return keys
 }
 
-// formatBlockKey returns a formatted string of a block's type and labels
+// formatBlockKey returns a formatted string of a block's type and labels.
 func formatBlockKey(block *hclsyntax.Block) string {
 	log.WithFields(log.Fields{blockTypeLabel: block.Type, blockLabelsLabel: block.Labels}).Traceln("Starting formatBlockKey")
 
@@ -237,21 +237,21 @@ func formatBlockKey(block *hclsyntax.Block) string {
 }
 
 // getBlockOpeningBytes returns the opening byte array of a block.
-func getBlockOpeningBytes(block *hclsyntax.Block) ([]byte, error) {
+func (s *Sorter) getBlockOpeningBytes(block *hclsyntax.Block) ([]byte, error) {
 	log.WithFields(log.Fields{blockTypeLabel: block.Type, blockLabelsLabel: block.Labels}).Traceln("Starting getBlockOpeningBytes")
 
 	// Initialize the output
 	var output []byte
 
-	if !params.RemoveComments {
+	if !s.params.RemoveComments {
 		log.WithFields(log.Fields{blockTypeLabel: block.Type, blockLabelsLabel: block.Labels}).Debugln("Getting node comment")
-		lines, err := getLinesFromFile(block.TypeRange.Filename)
+		lines, err := s.getLinesFromFile(block.TypeRange.Filename)
 		if err != nil {
 			return nil, fmt.Errorf("could not get lines from file: %w", err)
 		}
 
 		startLine := block.TypeRange.Start.Line - 1 // Subtract 1 to account for 0-indexing of string arrays vs HCL line numbers
-		nodeComment := getNodeComment(lines, startLine)
+		nodeComment := s.getNodeComment(lines, startLine)
 
 		if len(nodeComment) > 0 {
 			output = append(output, []byte(fmt.Sprintf("%s\n", strings.Join(nodeComment, "\n")))...)
@@ -273,7 +273,7 @@ func getBlockOpeningBytes(block *hclsyntax.Block) ([]byte, error) {
 }
 
 // getBlockBodyBytes returns the byte array of all the attributes and child blocks of a block.
-func getBlockBodyBytes(block *hclsyntax.Block, keys []string) ([]byte, error) {
+func (s *Sorter) getBlockBodyBytes(block *hclsyntax.Block, keys []string) ([]byte, error) {
 	log.WithFields(log.Fields{blockTypeLabel: block.Type, blockLabelsLabel: block.Labels}).Traceln("Starting getBlockBodyBytes")
 
 	var output []byte
@@ -300,7 +300,7 @@ func getBlockBodyBytes(block *hclsyntax.Block, keys []string) ([]byte, error) {
 		// Write the block attributes
 		if attribute, ok := block.Body.Attributes[key]; ok {
 			log.WithField("attribute.Name", attribute.Name).Debugln("Found key in block attributes")
-			b, err := getAttributeBytes(attribute, path)
+			b, err := s.getAttributeBytes(attribute, path)
 			if err != nil {
 				return nil, fmt.Errorf("could not write attribute: %w", err)
 			}
@@ -318,7 +318,7 @@ func getBlockBodyBytes(block *hclsyntax.Block, keys []string) ([]byte, error) {
 
 				log.WithField("childBlock", childBlock).Debugln("Found child block in blocks")
 				buffer = addNewLineIfBufferExists(buffer)
-				b, err := getSortedBlockBytes(childBlock)
+				b, err := s.getSortedBlockBytes(childBlock)
 				if err != nil {
 					return nil, fmt.Errorf("could not sort block: %w", err)
 				}
@@ -344,7 +344,7 @@ func getBlockBodyBytes(block *hclsyntax.Block, keys []string) ([]byte, error) {
 	return output, nil
 }
 
-// addNewlineIfBufferExists adds a newline to the buffer if the buffer is not empty.
+// addNewLineIfBufferExists adds a newline to the buffer if the buffer is not empty.
 func addNewLineIfBufferExists(buffer []byte) []byte {
 	log.WithField("buffer", buffer).Traceln("Starting addNewLineIfBufferExists")
 
@@ -355,10 +355,10 @@ func addNewLineIfBufferExists(buffer []byte) []byte {
 }
 
 // getAttributeBytes returns the byte array of an attribute.
-func getAttributeBytes(attribute *hclsyntax.Attribute, path string) ([]byte, error) {
+func (s *Sorter) getAttributeBytes(attribute *hclsyntax.Attribute, path string) ([]byte, error) {
 	log.WithField("attribute.Name", attribute.Name).Traceln("Starting getAttributeBytes")
 
-	content, err := readNodeFromFile(
+	content, err := s.readNodeFromFile(
 		path,
 		attribute.Range().Start.Line,
 		attribute.Range().Start.Column,
@@ -369,20 +369,20 @@ func getAttributeBytes(attribute *hclsyntax.Attribute, path string) ([]byte, err
 		return nil, fmt.Errorf("could not read file contents: %w", err)
 	}
 
-	s := strings.Join(content, "\n")
-	b := []byte(fmt.Sprintf("%s\n", s))
+	str := strings.Join(content, "\n")
+	b := []byte(fmt.Sprintf("%s\n", str))
 
 	return b, nil
 }
 
-// getBlockClosingBytes returns the closing byte array of a block
+// getBlockClosingBytes returns the closing byte array of a block.
 func getBlockClosingBytes(block *hclsyntax.Block) []byte {
 	log.WithFields(log.Fields{blockTypeLabel: block.Type, blockLabelsLabel: block.Labels}).Traceln("Starting getBlockClosingBytes")
 
 	return []byte("}\n")
 }
 
-// Returns the file path of the block
+// getPathFromBlock returns the file path of the block.
 func getPathFromBlock(block *hclsyntax.Block) (string, error) {
 	log.WithFields(log.Fields{blockTypeLabel: block.Type, blockLabelsLabel: block.Labels}).Traceln("Starting getPathFromBlock")
 
@@ -393,26 +393,26 @@ func getPathFromBlock(block *hclsyntax.Block) (string, error) {
 	return path, nil
 }
 
-// readNodeFromFile reads a node from a file and returns the contents as a slice of strings
+// readNodeFromFile reads a node from a file and returns the contents as a slice of strings.
 //
-// The startLine and startCol are inclusive
-// The endLine and endCol are exclusive
-func readNodeFromFile(filename string, startLine, startCol, endLine, endCol int) ([]string, error) {
+// The startLine and startCol are inclusive.
+// The endLine and endCol are exclusive.
+func (s *Sorter) readNodeFromFile(filename string, startLine, startCol, endLine, endCol int) ([]string, error) {
 	log.WithFields(log.Fields{"filename": filename, "startLine": startLine, "startCol": startCol, "endLine": endLine, "endCol": endCol}).Traceln("Starting readNodeFromFile")
 
 	// HCL lines are 1-indexed, so we need to subtract 1 from the start and end lines
 	startLine--
 	endLine--
 
-	lines, err := getLinesFromFile(filename)
+	lines, err := s.getLinesFromFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf("could not get lines from file: %w", err)
 	}
 
 	var output []string
 
-	if !params.RemoveComments {
-		nodeComment := getNodeComment(lines, startLine)
+	if !s.params.RemoveComments {
+		nodeComment := s.getNodeComment(lines, startLine)
 
 		if len(nodeComment) > 0 {
 			output = append(output, nodeComment...)
@@ -425,7 +425,7 @@ func readNodeFromFile(filename string, startLine, startCol, endLine, endCol int)
 		log.WithField("line", line).Debugln("Current line")
 
 		// Grab the correct slice of the line
-		lineSlice := getLineSlice(line, startLine, endLine, i, startCol, endCol)
+		lineSlice := s.getLineSlice(line, startLine, endLine, i, startCol, endCol)
 
 		// Append the line slice to the buffer
 		if len(lineSlice) > 0 {
@@ -437,8 +437,8 @@ func readNodeFromFile(filename string, startLine, startCol, endLine, endCol int)
 	return output, nil
 }
 
-// getLineSlice returns the correct slice of the line based on the start and end columns
-func getLineSlice(line string, startLine, endLine, currentLine, startCol, endCol int) string {
+// getLineSlice returns the correct slice of the line based on the start and end columns.
+func (s *Sorter) getLineSlice(line string, startLine, endLine, currentLine, startCol, endCol int) string {
 	log.WithFields(log.Fields{"line": line, "startLine": startLine, "endLine": endLine, "currentLine": currentLine, "startCol": startCol, "endCol": endCol}).Traceln("Starting getLineSlice")
 
 	// Check if it is the starting line
@@ -448,7 +448,7 @@ func getLineSlice(line string, startLine, endLine, currentLine, startCol, endCol
 		line = line[startCol-1:]
 	}
 
-	if params.RemoveComments {
+	if s.params.RemoveComments {
 		if isStartOfComment(line) {
 			log.Debugln("Removing comment line.")
 			line = ""

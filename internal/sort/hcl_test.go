@@ -264,6 +264,7 @@ func TestBlockListSorterLess(t *testing.T) {
 
 
 func TestGetNodeComment(t *testing.T) {
+	s := NewSorter(&Params{}, afero.NewMemMapFs())
 
 	/*********************************************************************/
 	// Block comment directly adjacent to the resource (no blank line).
@@ -284,7 +285,7 @@ func TestGetNodeComment(t *testing.T) {
 			" * This is a block comment",
 			" */",
 		}
-		result := getNodeComment(lines, 3)
+		result := s.getNodeComment(lines, 3)
 		if !reflect.DeepEqual(result, expected) {
 			t.Errorf("getNodeComment() = %v, want %v", result, expected)
 		}
@@ -310,7 +311,7 @@ func TestGetNodeComment(t *testing.T) {
 			" */",
 			"",
 		}
-		result := getNodeComment(lines, 4)
+		result := s.getNodeComment(lines, 4)
 		if !reflect.DeepEqual(result, expected) {
 			t.Errorf("getNodeComment() = %v, want %v", result, expected)
 		}
@@ -332,7 +333,7 @@ func TestGetNodeComment(t *testing.T) {
 			"# First comment",
 			"# Second comment",
 		}
-		result := getNodeComment(lines, 2)
+		result := s.getNodeComment(lines, 2)
 		if !reflect.DeepEqual(result, expected) {
 			t.Errorf("getNodeComment() = %v, want %v", result, expected)
 		}
@@ -351,7 +352,7 @@ func TestGetNodeComment(t *testing.T) {
 			`resource "aws_instance" "foo" {`,
 			"}",
 		}
-		result := getNodeComment(lines, 3)
+		result := s.getNodeComment(lines, 3)
 		if len(result) != 0 {
 			t.Errorf("getNodeComment() = %v, want empty slice", result)
 		}
@@ -359,28 +360,20 @@ func TestGetNodeComment(t *testing.T) {
 }
 
 func TestParseHclFileUsesInjectedFileSystem(t *testing.T) {
-	// Save and restore the original filesystem
-	originalFS := FS
-	originalAFS := AFS
-	t.Cleanup(func() {
-		FS = originalFS
-		AFS = originalAFS
-	})
-
-	// Inject an in-memory filesystem
-	SetFileSystem(afero.NewMemMapFs())
+	memFS := afero.NewMemMapFs()
 
 	// Write a minimal .tf file into the in-memory FS
 	tfPath := "/test/main.tf"
 	tfContent := []byte("resource \"null_resource\" \"example\" {}\n")
-	if err := AFS.MkdirAll("/test", 0755); err != nil {
+	if err := memFS.MkdirAll("/test", 0755); err != nil {
 		t.Fatalf("could not create directory: %v", err)
 	}
-	if err := AFS.WriteFile(tfPath, tfContent, 0644); err != nil {
+	if err := afero.WriteFile(memFS, tfPath, tfContent, 0644); err != nil {
 		t.Fatalf("could not write tf file: %v", err)
 	}
 
-	body, err := parseHclFile(tfPath)
+	s := NewSorter(&Params{}, memFS)
+	body, err := s.parseHclFile(tfPath)
 	if err != nil {
 		t.Fatalf("parseHclFile() returned unexpected error: %v", err)
 	}
@@ -406,23 +399,19 @@ func (s *stubHCLBody) JustAttributes() (hcl.Attributes, hcl.Diagnostics) {
 func (s *stubHCLBody) MissingItemRange() hcl.Range { return hcl.Range{} }
 
 func TestParseHclFileNonHclsyntaxBody(t *testing.T) {
-	// Save and restore the parse function and filesystem.
+	// Save and restore the parse function only.
 	origParseFn := hclParseFn
-	originalFS := FS
-	originalAFS := AFS
 	t.Cleanup(func() {
 		hclParseFn = origParseFn
-		FS = originalFS
-		AFS = originalAFS
 	})
 
-	// Inject an in-memory filesystem so AFS.ReadFile succeeds.
-	SetFileSystem(afero.NewMemMapFs())
+	// Use an in-memory filesystem so ReadFile succeeds.
+	memFS := afero.NewMemMapFs()
 	tfPath := "/test/stub.tf"
-	if err := AFS.MkdirAll("/test", 0755); err != nil {
+	if err := memFS.MkdirAll("/test", 0755); err != nil {
 		t.Fatalf("could not create directory: %v", err)
 	}
-	if err := AFS.WriteFile(tfPath, []byte("# stub\n"), 0644); err != nil {
+	if err := afero.WriteFile(memFS, tfPath, []byte("# stub\n"), 0644); err != nil {
 		t.Fatalf("could not write stub file: %v", err)
 	}
 
@@ -431,7 +420,8 @@ func TestParseHclFileNonHclsyntaxBody(t *testing.T) {
 		return &hcl.File{Body: &stubHCLBody{}}, nil
 	}
 
-	_, err := parseHclFile(tfPath)
+	s := NewSorter(&Params{}, memFS)
+	_, err := s.parseHclFile(tfPath)
 	if err == nil {
 		t.Fatal("parseHclFile() expected an error for non-hclsyntax body, got nil")
 	}

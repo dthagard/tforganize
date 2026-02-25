@@ -19,12 +19,12 @@ var hclParseFn = func(content []byte, filename string) (*hcl.File, hcl.Diagnosti
 	return hclparse.NewParser().ParseHCL(content, filename)
 }
 
-// parseHclFile reads an HCL file from the given path and returns the body of the file
-func parseHclFile(path string) (*hclsyntax.Body, error) {
+// parseHclFile reads an HCL file from the given path and returns the body of the file.
+func (s *Sorter) parseHclFile(path string) (*hclsyntax.Body, error) {
 	log.WithField("path", path).Traceln("Starting parseHclFile")
 
 	// Read the HCL file content
-	hclContent, err := AFS.ReadFile(path)
+	hclContent, err := s.afs.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read HCL file: %w", err)
 	}
@@ -48,12 +48,12 @@ func parseHclFile(path string) (*hclsyntax.Body, error) {
 // BlockListSorter implements the sort.Interface for []*hclsyntax.Block
 type BlockListSorter []*hclsyntax.Block
 
-// Len returns the length of the array
+// Len returns the length of the array.
 func (bs BlockListSorter) Len() int {
 	return len(bs)
 }
 
-// Less compares two blocks based on their types and labels
+// Less compares two blocks based on their types and labels.
 func (bs BlockListSorter) Less(i, j int) bool {
 	block1 := bs[i]
 	block2 := bs[j]
@@ -80,7 +80,7 @@ func (bs BlockListSorter) Less(i, j int) bool {
 	return len(block1.Labels) < len(block2.Labels)
 }
 
-// Swap swaps two blocks in the array
+// Swap swaps two blocks in the array.
 func (bs BlockListSorter) Swap(i, j int) {
 	bs[i], bs[j] = bs[j], bs[i]
 }
@@ -95,8 +95,8 @@ func isSortable(file fs.FileInfo) bool {
 	return true
 }
 
-// getNodeComment returns the comment lines for the node starting at the given line
-func getNodeComment(lines []string, startLine int) []string {
+// getNodeComment returns the comment lines for the node starting at the given line.
+func (s *Sorter) getNodeComment(lines []string, startLine int) []string {
 	log.WithFields(log.Fields{"lines": lines, "startLine": startLine}).Traceln("Starting getNodeComment")
 
 	// Initialize the return value
@@ -139,8 +139,8 @@ func getNodeComment(lines []string, startLine int) []string {
 		comment = reverseStringArray(buffer)
 
 		// Remove the header if present
-		if params.HasHeader {
-			comment = removeHeader(comment)
+		if s.params.HasHeader {
+			comment = s.removeHeader(comment)
 		}
 
 		// Remove the trailing empty lines
@@ -150,12 +150,12 @@ func getNodeComment(lines []string, startLine int) []string {
 	return comment
 }
 
-// removeHeader removes the header from the comment lines
-func removeHeader(lines []string) []string {
+// removeHeader removes the header from the comment lines.
+func (s *Sorter) removeHeader(lines []string) []string {
 	log.WithField("lines", lines).Traceln("Starting removeHeader")
 
 	comment := strings.Join(lines, "\n")
-	comment = strings.Replace(comment, params.HeaderPattern, "", 1)
+	comment = strings.Replace(comment, s.params.HeaderPattern, "", 1)
 	result := strings.Split(comment, "\n")
 
 	// Remove the leading empty lines
@@ -164,11 +164,11 @@ func removeHeader(lines []string) []string {
 	return result
 }
 
-// addHeader prefixes a comment header to a byte array
-func addHeader(buffer []byte) []byte {
+// addHeader prefixes a comment header to a byte array.
+func (s *Sorter) addHeader(buffer []byte) []byte {
 	log.Traceln("Starting addHeader")
 
-	headerBytes := []byte(params.HeaderPattern)
+	headerBytes := []byte(s.params.HeaderPattern)
 	newlineBytes := []byte("\n")
 
 	result := make([]byte, 0, len(headerBytes)+len(buffer)+len(newlineBytes))
@@ -179,7 +179,7 @@ func addHeader(buffer []byte) []byte {
 	return result
 }
 
-// isStartOfComment checks if a line is the start of a comment
+// isStartOfComment checks if a line is the start of a comment.
 func isStartOfComment(line string) bool {
 	log.WithField("line", line).Traceln("Starting isStartOfComment")
 
@@ -203,7 +203,7 @@ func isStartOfComment(line string) bool {
 	return false
 }
 
-// isEndOfComment checks if a line is the end of a comment
+// isEndOfComment checks if a line is the end of a comment.
 func isEndOfComment(line string) bool {
 	log.WithField("line", line).Traceln("Starting isEndOfComment")
 
@@ -222,7 +222,7 @@ func isEndOfComment(line string) bool {
 	return false
 }
 
-// isEmptyLine checks if a line is empty
+// isEmptyLine checks if a line is empty.
 func isEmptyLine(line string) bool {
 	log.WithField("line", line).Traceln("Starting isEmptyLine")
 
@@ -232,7 +232,7 @@ func isEmptyLine(line string) bool {
 	return len(s) == 0
 }
 
-// removeLeadingEmptyLines truncates extra empty lines from the end of the comment
+// removeTrailingEmptyLines truncates extra empty lines from the end of a slice.
 func removeTrailingEmptyLines(lines []string) []string {
 	log.WithField("lines", lines).Traceln("Starting removeTrailingEmptyLines")
 
@@ -248,7 +248,7 @@ func removeTrailingEmptyLines(lines []string) []string {
 	return result
 }
 
-// removeLeadingEmptyLines removes empty lines from the beginning of the comment
+// removeLeadingEmptyLines removes empty lines from the beginning of a slice.
 func removeLeadingEmptyLines(lines []string) []string {
 	log.WithField("lines", lines).Traceln("Starting removeLeadingEmptyLines")
 
