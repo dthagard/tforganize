@@ -4,6 +4,8 @@
 
 `tforganize` is a CLI that rewrites `.tf` files so they match a consistent layout. It sorts blocks, enforces Terraform's canonical meta-argument order, optionally splits output by block type, and protects custom headers/comments when you want to keep them.
 
+![tforganize demo](demo/demo.gif)
+
 ## Features at a glance
 
 - **Deterministic sorting** – resources, modules, variables, outputs, checks, imports, etc. are emitted in a stable order.
