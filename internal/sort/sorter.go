@@ -8,6 +8,7 @@ import (
 	gosort "sort"
 	"strings"
 
+	"github.com/bmatcuk/doublestar/v4"
 	"github.com/spf13/afero"
 )
 
@@ -51,6 +52,13 @@ func (s *Sorter) run(target string) error {
 	}
 	if s.params.Check && s.params.OutputDir != "" {
 		return fmt.Errorf("the check flag conflicts with the output-dir flag")
+	}
+
+	// 1a. Validate exclude glob patterns.
+	for _, p := range s.params.Excludes {
+		if !doublestar.ValidatePattern(p) {
+			return fmt.Errorf("invalid exclude pattern %q", p)
+		}
 	}
 
 	// 2. Resolve target files

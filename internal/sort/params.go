@@ -10,6 +10,7 @@ var params = &Params{}
 // This function will be removed in a future release.
 func initParams() {
 	params = &Params{
+		Excludes:       []string{},
 		GroupByType:    false,
 		HasHeader:      false,
 		HeaderPattern:  "",

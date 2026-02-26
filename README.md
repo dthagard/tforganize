@@ -68,8 +68,21 @@ Flags:
   -e, --has-header              treat files as having a header matched by --header-pattern
   -p, --header-pattern string   regex or multi-line string that matches the header block
   -k, --keep-header             preserve the matched header in the output (requires --has-header and pattern)
+  -x, --exclude stringArray     glob pattern to exclude from sorting (repeatable; supports **)
       --config string           YAML config path (default $HOME/.tforganize.yaml)
   -d, --debug                   enable verbose logging
+```
+
+## Exclude files
+
+You can exclude specific files or directories from sorting using glob patterns. The pattern is matched against the file path relative to the target directory.
+
+-   Supports standard wildcards (`*`, `?`)
+-   Supports recursive matching (`**`)
+
+```bash
+# Skip .terraform directory and generated files
+tforganize sort . --exclude '.terraform/**' --exclude '*.generated.tf'
 ```
 
 ## Group-by-type target files
@@ -106,6 +119,10 @@ header-pattern: |
   /**
    * Company Confidential
    */
+exclude:
+  - .terraform/**
+  - terraform.tfstate.d/**
+  - "*.generated.tf"
 ```
 
 Key fields:
@@ -119,6 +136,7 @@ Key fields:
 | `has-header`     | Indicates a header block exists              |
 | `header-pattern` | Multi-line string or regex used to match header |
 | `keep-header`    | Re-emit the matched header (requires the two options above) |
+| `exclude`        | List of glob patterns to exclude             |
 
 `tforganize` refuses to run with `keep-header: true` unless `has-header` is true **and** `header-pattern` is non-empty — the same validation applies to CLI flags.
 

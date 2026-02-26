@@ -119,13 +119,19 @@ func initConfig(cmd *cobra.Command, args []string) {
 // Bind each cobra flag to its associated viper configuration (config file and environment variable)
 func bindFlags(cmd *cobra.Command, v *viper.Viper) {
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
-		// Determine the naming convention of the flags when represented in the config file
 		configName := f.Name
 
-		// Apply the viper config value to the flag when the flag is not set and viper has a value
 		if !f.Changed && v.IsSet(configName) {
-			val := v.Get(configName)
-			cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val))
+			// StringArray/StringSlice flags require one Set() call per element.
+			// fmt.Sprintf("%v", val) would produce "[a b]" which pflag rejects.
+			if f.Value.Type() == "stringArray" || f.Value.Type() == "stringSlice" {
+				for _, s := range v.GetStringSlice(configName) {
+					cmd.Flags().Set(f.Name, s)
+				}
+			} else {
+				val := v.Get(configName)
+				cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val))
+			}
 		}
 	})
 }
