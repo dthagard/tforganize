@@ -3,6 +3,7 @@ module github.com/dthagard/tforganize
 go 1.20
 
 require (
+	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/hashicorp/hcl/v2 v2.17.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/afero v1.9.5

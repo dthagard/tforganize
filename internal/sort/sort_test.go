@@ -325,6 +325,79 @@ func setParams(path string, p *Params) error {
 	return nil
 }
 
+// TestRunInvalidExcludePattern verifies that Sort returns a non-nil error
+// containing "invalid exclude pattern" when an invalid glob is supplied.
+func TestRunInvalidExcludePattern(t *testing.T) {
+	initParams()
+	dir := t.TempDir()
+	err := Sort(dir, &Params{Excludes: []string{"[invalid"}})
+	if err == nil {
+		t.Fatal("expected error for invalid exclude pattern, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid exclude pattern") {
+		t.Errorf("error message %q should contain 'invalid exclude pattern'", err.Error())
+	}
+}
+
+// TestSortWithExcludesIntegration verifies the end-to-end exclude behaviour:
+// - generated.tf is present but excluded → file is left unchanged
+// - main.tf is present and not excluded → file is processed (sorted)
+func TestSortWithExcludesIntegration(t *testing.T) {
+	memFS := afero.NewMemMapFs()
+
+	const target = "/excl_integration"
+	_ = memFS.MkdirAll(target, 0755)
+
+	mainContent := `resource "aws_instance" "b_server" {
+  instance_type = "t2.micro"
+  ami           = "ami-b"
+}
+
+resource "aws_instance" "a_server" {
+  instance_type = "t2.micro"
+  ami           = "ami-a"
+}
+`
+	generatedContent := `resource "aws_s3_bucket" "my_bucket" {
+  bucket = "my-bucket"
+}
+`
+
+	_ = afero.WriteFile(memFS, filepath.Join(target, "main.tf"), []byte(mainContent), 0644)
+	_ = afero.WriteFile(memFS, filepath.Join(target, "generated.tf"), []byte(generatedContent), 0644)
+
+	outDir := "/excl_integration_out"
+	_ = memFS.MkdirAll(outDir, 0755)
+
+	s := NewSorter(&Params{
+		Excludes:  []string{"generated.tf"},
+		OutputDir: outDir,
+	}, memFS)
+	if err := s.run(target); err != nil {
+		t.Fatalf("Sort returned unexpected error: %v", err)
+	}
+
+	// generated.tf should NOT appear in the output directory (was excluded).
+	if _, err := memFS.Stat(filepath.Join(outDir, "generated.tf")); err == nil {
+		t.Error("generated.tf should not be written to output dir (it was excluded)")
+	}
+
+	// main.tf SHOULD appear in the output directory and be sorted (a before b).
+	mainBytes, err := afero.ReadFile(memFS, filepath.Join(outDir, "main.tf"))
+	if err != nil {
+		t.Fatalf("main.tf not found in output dir: %v", err)
+	}
+	out := string(mainBytes)
+	aIdx := strings.Index(out, "a_server")
+	bIdx := strings.Index(out, "b_server")
+	if aIdx == -1 || bIdx == -1 {
+		t.Fatalf("expected both a_server and b_server in main.tf output, got:\n%s", out)
+	}
+	if aIdx > bIdx {
+		t.Errorf("a_server should come before b_server in sorted output")
+	}
+}
+
 func TestGetLineSlice(t *testing.T) {
 
 	/*********************************************************************/

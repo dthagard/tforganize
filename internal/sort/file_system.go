@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/bmatcuk/doublestar/v4"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 )
@@ -54,16 +55,25 @@ func (s *Sorter) getFilesFromTarget(target string) ([]string, error) {
 		return nil, err
 	}
 
-	files := []string{target}
 	if targetInfo.IsDir() {
 		log.Debugln("target is a directory")
-		files, err = s.getFilesInFolder(target)
+		files, err := s.getFilesInFolder(target)
 		if err != nil {
 			return nil, fmt.Errorf("could not get files in folder: %w", err)
 		}
+		return files, nil
 	}
 
-	return files, nil
+	// Single-file target: check excludes before returning.
+	excluded, err := s.isExcluded(filepath.Dir(target), target)
+	if err != nil {
+		return nil, err
+	}
+	if excluded {
+		// Return empty list — caller (run) handles gracefully (nothing to sort).
+		return []string{}, nil
+	}
+	return []string{target}, nil
 }
 
 // getPathInfo returns the filesystem info for a given path.
@@ -108,13 +118,61 @@ func (s *Sorter) getFilesInFolder(path string) ([]string, error) {
 
 	fileNames := make([]string, 0, len(files))
 	for _, file := range files {
-		if isSortable(file) {
-			filePath := filepath.Join(path, file.Name())
-			fileNames = append(fileNames, filePath)
+		if !isSortable(file) {
+			continue
 		}
+		filePath := filepath.Join(path, file.Name())
+		excluded, err := s.isExcluded(path, filePath)
+		if err != nil {
+			return nil, err
+		}
+		if excluded {
+			continue
+		}
+		fileNames = append(fileNames, filePath)
 	}
 
 	return fileNames, nil
+}
+
+// isExcluded reports whether the given absolute filePath should be excluded
+// from processing, based on the exclude glob patterns in s.params.Excludes.
+//
+// Matching is performed against the path of filePath relative to targetDir,
+// using forward-slash separators. This mirrors .gitignore semantics.
+//
+// Returns (false, nil) when no patterns are configured.
+// Returns (false, error) when a pattern is syntactically invalid — callers
+// must propagate this error; pattern validity should already be checked in
+// run() before any file iteration begins.
+func (s *Sorter) isExcluded(targetDir string, filePath string) (bool, error) {
+	if len(s.params.Excludes) == 0 {
+		return false, nil
+	}
+
+	rel, err := filepath.Rel(targetDir, filePath)
+	if err != nil {
+		// Unreachable in practice: targetDir and filePath are always both
+		// absolute. Fall back to the basename.
+		rel = filepath.Base(filePath)
+	}
+	// Normalise to forward slashes for cross-platform pattern matching.
+	rel = filepath.ToSlash(rel)
+
+	for _, pattern := range s.params.Excludes {
+		matched, err := doublestar.Match(pattern, rel)
+		if err != nil {
+			return false, fmt.Errorf("invalid exclude pattern %q: %w", pattern, err)
+		}
+		if matched {
+			log.WithFields(log.Fields{
+				"file":    filePath,
+				"pattern": pattern,
+			}).Debugln("file excluded by pattern")
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // getLinesFromFile returns a list of lines from a file.
