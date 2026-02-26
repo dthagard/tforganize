@@ -76,7 +76,7 @@ Flags:
 You can exclude specific files or directories from sorting using glob patterns. The pattern is matched against the file path relative to the target directory.
 
 -   Supports standard wildcards (`*`, `?`)
--   Supports recursive matching (`**`) via [doublestar](https://github.com/bmatcuk/doublestar)
+-   Supports recursive matching (`**`)
 
 ```bash
 # Skip .terraform directory and generated files
