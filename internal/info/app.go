@@ -9,8 +9,11 @@ const AppRepoOwnerEmail string = "1454296+dthagard@users.noreply.github.com"
 // AppName defined the application name.
 const AppName string = "tforganize"
 
-// AppVersion defined current version of this application.
-const AppVersion string = "v0.1.0"
+// AppVersion is the current version of this application.
+// It is set at build time via ldflags:
+//
+//	-ldflags "-X github.com/dthagard/tforganize/internal/info.AppVersion=v1.0.0"
+var AppVersion = "dev"
 
 // License defined the license type for this application.
 const AppLicense string = `

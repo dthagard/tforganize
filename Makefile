@@ -1,6 +1,8 @@
 # Static variables
 BIN_DIR := ./bin
 APP_NAME := tforganize
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+LDFLAGS := -X github.com/dthagard/tforganize/internal/info.AppVersion=$(VERSION)
 
 # Go parameters
 GOCMD = go
@@ -26,7 +28,7 @@ all: configure build
 # Build target
 .PHONY: build
 build:
-	$(GOBUILD) -o $(BIN_DIR)/${APP_NAME}
+	$(GOBUILD) -ldflags '$(LDFLAGS)' -o $(BIN_DIR)/${APP_NAME}
 
 # Clean target
 .PHONY: clean

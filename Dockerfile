@@ -6,14 +6,15 @@
 # You may obtain a copy of the License at the LICENSE file in
 # the root directory of this source tree.
 
-FROM golang:1.20.4-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
-RUN apk add --update --no-cache make
+ARG VERSION=dev
+RUN apk add --update --no-cache make git
 
 WORKDIR /go/src/tforganize
 
 COPY . .
-RUN make all
+RUN VERSION=${VERSION} make all
 
 ################
 
