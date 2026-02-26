@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
 	log "github.com/sirupsen/logrus"
@@ -90,7 +89,7 @@ func (s *Sorter) getPathInfo(path string) (fs.FileInfo, error) {
 
 // getDirectory returns the directory for a given path.
 func (s *Sorter) getDirectory(path string) (string, error) {
-	log.WithField("path", path).Traceln("Starting getDirInfo")
+	log.WithField("path", path).Traceln("Starting getDirectory")
 
 	info, err := s.getPathInfo(path)
 	if err != nil {
@@ -101,10 +100,7 @@ func (s *Sorter) getDirectory(path string) (string, error) {
 		return path, nil
 	}
 
-	fileParts := strings.Split(path, afero.FilePathSeparator)
-	dirPath := strings.Join(fileParts[:len(fileParts)-1], afero.FilePathSeparator)
-
-	return dirPath, nil
+	return filepath.Dir(path), nil
 }
 
 // getFilesInFolder returns a list of files in a folder.
