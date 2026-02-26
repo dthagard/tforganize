@@ -77,8 +77,22 @@ func (s *Sorter) getFilesFromTarget(target string) ([]string, error) {
 }
 
 // getPathInfo returns the filesystem info for a given path.
+// When running on a real filesystem, it uses Lstat to detect symlinks and
+// refuses them to prevent overwriting symlink targets in --inline mode.
 func (s *Sorter) getPathInfo(path string) (fs.FileInfo, error) {
 	log.WithField("path", path).Traceln("Starting getPathInfo")
+
+	// Use Lstat when available to detect symlinks.
+	if lstater, ok := s.fs.(afero.Lstater); ok {
+		info, lstatCalled, err := lstater.LstatIfPossible(path)
+		if err != nil {
+			return nil, fmt.Errorf("could not get target info: %w", err)
+		}
+		if lstatCalled && info.Mode()&os.ModeSymlink != 0 {
+			return nil, fmt.Errorf("refusing to process symlink: %s", path)
+		}
+		return info, nil
+	}
 
 	info, err := s.fs.Stat(path)
 	if err != nil {
