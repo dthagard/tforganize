@@ -24,9 +24,6 @@ go.work
 bin/
 tforganize
 
-# Demo tape utility files (fixture reset copy — not needed in repo)
-demo/main.tf.orig
-
 # Scratch workspace files
 scratch/
 
