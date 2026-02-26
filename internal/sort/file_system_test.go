@@ -241,6 +241,248 @@ func TestGetFilesInFolder(t *testing.T) {
 	})
 }
 
+// TestIsExcluded verifies the isExcluded helper against a table of cases.
+func TestIsExcluded(t *testing.T) {
+	cases := []struct {
+		name             string
+		targetDir        string
+		filePath         string
+		patterns         []string
+		expectedExcluded bool
+		expectedErr      bool
+	}{
+		{
+			name:             "no patterns",
+			targetDir:        "/a",
+			filePath:         "/a/main.tf",
+			patterns:         []string{},
+			expectedExcluded: false,
+			expectedErr:      false,
+		},
+		{
+			name:             "exact basename match",
+			targetDir:        "/a",
+			filePath:         "/a/main.tf",
+			patterns:         []string{"main.tf"},
+			expectedExcluded: true,
+			expectedErr:      false,
+		},
+		{
+			name:             "wildcard match no suffix",
+			targetDir:        "/a",
+			filePath:         "/a/generated.tf",
+			patterns:         []string{"*.generated.tf"},
+			expectedExcluded: false,
+			expectedErr:      false,
+		},
+		{
+			name:             "wildcard match suffix",
+			targetDir:        "/a",
+			filePath:         "/a/foo.generated.tf",
+			patterns:         []string{"*.generated.tf"},
+			expectedExcluded: true,
+			expectedErr:      false,
+		},
+		{
+			name:             "double-star dir match",
+			targetDir:        "/a",
+			filePath:         "/a/.terraform/lock.hcl",
+			patterns:         []string{".terraform/**"},
+			expectedExcluded: true,
+			expectedErr:      false,
+		},
+		{
+			name:             "double-star no match",
+			targetDir:        "/a",
+			filePath:         "/a/variables.tf",
+			patterns:         []string{".terraform/**"},
+			expectedExcluded: false,
+			expectedErr:      false,
+		},
+		{
+			name:             "multiple patterns first matches",
+			targetDir:        "/a",
+			filePath:         "/a/main.tf",
+			patterns:         []string{"main.tf", "*.tf"},
+			expectedExcluded: true,
+			expectedErr:      false,
+		},
+		{
+			name:             "multiple patterns second matches",
+			targetDir:        "/a",
+			filePath:         "/a/main.tf",
+			patterns:         []string{"variables.tf", "main.tf"},
+			expectedExcluded: true,
+			expectedErr:      false,
+		},
+		{
+			name:             "multiple patterns none match",
+			targetDir:        "/a",
+			filePath:         "/a/main.tf",
+			patterns:         []string{"variables.tf", "outputs.tf"},
+			expectedExcluded: false,
+			expectedErr:      false,
+		},
+		{
+			name:             "invalid pattern",
+			targetDir:        "/a",
+			filePath:         "/a/main.tf",
+			patterns:         []string{"[bad"},
+			expectedExcluded: false,
+			expectedErr:      true,
+		},
+		{
+			name:             "cross-platform path sep",
+			targetDir:        "/a",
+			filePath:         "/a/sub/main.tf",
+			patterns:         []string{"sub/main.tf"},
+			expectedExcluded: true,
+			expectedErr:      false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := NewSorter(&Params{Excludes: tc.patterns}, afero.NewMemMapFs())
+			excluded, err := s.isExcluded(tc.targetDir, tc.filePath)
+			if tc.expectedErr {
+				if err == nil {
+					t.Errorf("expected error but got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+			if excluded != tc.expectedExcluded {
+				t.Errorf("isExcluded() = %v, want %v", excluded, tc.expectedExcluded)
+			}
+		})
+	}
+}
+
+// TestGetFilesInFolderWithExcludes verifies that getFilesInFolder honours the
+// Excludes patterns by skipping matched files.
+func TestGetFilesInFolderWithExcludes(t *testing.T) {
+	t.Run("single exact exclude", func(t *testing.T) {
+		memFS := afero.NewMemMapFs()
+		const dir = "/excl"
+		_ = memFS.MkdirAll(dir, 0755)
+		for _, name := range []string{"foo.tf", "bar.tf", "generated.tf"} {
+			_ = afero.WriteFile(memFS, filepath.Join(dir, name), []byte(""), 0644)
+		}
+
+		s := NewSorter(&Params{Excludes: []string{"generated.tf"}}, memFS)
+		result, err := s.getFilesInFolder(dir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		sort.Strings(result)
+		expected := []string{filepath.Join(dir, "bar.tf"), filepath.Join(dir, "foo.tf")}
+		sort.Strings(expected)
+
+		if !reflect.DeepEqual(result, expected) {
+			t.Errorf("getFilesInFolder() = %v, want %v", result, expected)
+		}
+	})
+
+	t.Run("exclude with wildcard", func(t *testing.T) {
+		memFS := afero.NewMemMapFs()
+		const dir = "/excl2"
+		_ = memFS.MkdirAll(dir, 0755)
+		for _, name := range []string{"foo.tf", "bar.generated.tf", "baz.tf"} {
+			_ = afero.WriteFile(memFS, filepath.Join(dir, name), []byte(""), 0644)
+		}
+
+		s := NewSorter(&Params{Excludes: []string{"*.generated.tf"}}, memFS)
+		result, err := s.getFilesInFolder(dir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		sort.Strings(result)
+		expected := []string{filepath.Join(dir, "baz.tf"), filepath.Join(dir, "foo.tf")}
+		sort.Strings(expected)
+
+		if !reflect.DeepEqual(result, expected) {
+			t.Errorf("getFilesInFolder() = %v, want %v", result, expected)
+		}
+	})
+
+	t.Run("exclude all", func(t *testing.T) {
+		memFS := afero.NewMemMapFs()
+		const dir = "/excl3"
+		_ = memFS.MkdirAll(dir, 0755)
+		for _, name := range []string{"foo.tf", "bar.tf"} {
+			_ = afero.WriteFile(memFS, filepath.Join(dir, name), []byte(""), 0644)
+		}
+
+		s := NewSorter(&Params{Excludes: []string{"*.tf"}}, memFS)
+		result, err := s.getFilesInFolder(dir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(result) != 0 {
+			t.Errorf("getFilesInFolder() = %v, want empty slice", result)
+		}
+	})
+
+	t.Run("invalid pattern returns error", func(t *testing.T) {
+		memFS := afero.NewMemMapFs()
+		const dir = "/excl4"
+		_ = memFS.MkdirAll(dir, 0755)
+		_ = afero.WriteFile(memFS, filepath.Join(dir, "foo.tf"), []byte(""), 0644)
+
+		s := NewSorter(&Params{Excludes: []string{"[bad"}}, memFS)
+		_, err := s.getFilesInFolder(dir)
+		if err == nil {
+			t.Errorf("expected error for invalid pattern, got nil")
+		}
+	})
+}
+
+// TestGetFilesFromTargetSingleFileExcluded verifies that getFilesFromTarget
+// returns an empty slice (no error) when the single-file target is excluded.
+func TestGetFilesFromTargetSingleFileExcluded(t *testing.T) {
+	t.Run("file matches exclude pattern", func(t *testing.T) {
+		memFS := afero.NewMemMapFs()
+		const dir = "/tmp/testdir"
+		_ = memFS.MkdirAll(dir, 0755)
+		target := filepath.Join(dir, "main.tf")
+		_ = afero.WriteFile(memFS, target, []byte(""), 0644)
+
+		s := NewSorter(&Params{Excludes: []string{"main.tf"}}, memFS)
+		result, err := s.getFilesFromTarget(target)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result) != 0 {
+			t.Errorf("getFilesFromTarget() = %v, want empty slice", result)
+		}
+	})
+
+	t.Run("file does not match exclude pattern", func(t *testing.T) {
+		memFS := afero.NewMemMapFs()
+		const dir = "/tmp/testdir2"
+		_ = memFS.MkdirAll(dir, 0755)
+		target := filepath.Join(dir, "main.tf")
+		_ = afero.WriteFile(memFS, target, []byte(""), 0644)
+
+		s := NewSorter(&Params{Excludes: []string{"variables.tf"}}, memFS)
+		result, err := s.getFilesFromTarget(target)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expected := []string{target}
+		if !reflect.DeepEqual(result, expected) {
+			t.Errorf("getFilesFromTarget() = %v, want %v", result, expected)
+		}
+	})
+}
+
 // countingFs wraps an afero.Fs and counts the number of Open calls.
 type countingFs struct {
 	afero.Fs

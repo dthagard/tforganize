@@ -11,6 +11,12 @@ type Params struct {
 	// Instead it reports which files would change and exits non-zero.
 	// Conflicts with the output-dir flag.
 	Check bool `yaml:"check"`
+	// Excludes is a list of glob patterns. Files whose path matches any pattern
+	// are skipped during sorting. Patterns support ** for cross-directory matching
+	// (e.g. ".terraform/**", "*.generated.tf", "modules/*/"). Patterns are matched
+	// against the path relative to the sort target directory. An invalid pattern
+	// causes Sort to return an error immediately.
+	Excludes []string `yaml:"exclude"`
 	// If the group-by-type flag is set, the resources will be grouped by type in the output files.
 	// Otherwise, the resources will be sorted alphabetically ascending by resource type and name in the existing files.
 	// Conflicts with the inline flag.

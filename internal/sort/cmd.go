@@ -36,4 +36,5 @@ func setFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVarP(&flags.OutputDir, "output-dir", "o", "", "output the results to a specific folder")
 	cmd.PersistentFlags().BoolVarP(&flags.RemoveComments, "remove-comments", "r", false, "remove comments in the sorted file(s)")
 	cmd.PersistentFlags().BoolVarP(&flags.Check, "check", "c", false, "check whether files are already sorted without writing changes; exits non-zero if any file would change")
+	cmd.PersistentFlags().StringArrayVarP(&flags.Excludes, "exclude", "x", []string{}, "glob pattern to exclude from sorting (repeatable; supports **); e.g. --exclude '.terraform/**'")
 }
