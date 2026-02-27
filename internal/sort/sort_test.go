@@ -1,6 +1,7 @@
 package sort
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -691,4 +692,154 @@ resource "aws_s3_bucket" "alpha" {
 			t.Errorf("alpha should come before beta in sorted output")
 		}
 	})
+}
+
+// TestRecursive verifies that --recursive mode processes nested directories.
+func TestRecursive(t *testing.T) {
+	t.Run("inline recursive sorts all nested directories", func(t *testing.T) {
+		// Copy the unsorted recursive testdata into a temp dir so inline writes don't mutate testdata.
+		srcDir := filepath.Join(testDataDir, "recursive", unsortedDir)
+		tmpDir := t.TempDir()
+		copyDir(t, srcDir, tmpDir)
+
+		s := NewSorter(&Params{Recursive: true, Inline: true}, afero.NewOsFs())
+		if err := s.run(tmpDir); err != nil {
+			t.Fatalf("recursive inline sort failed: %v", err)
+		}
+
+		// Compare each file against the expected sorted output.
+		sortedDir := filepath.Join(testDataDir, "recursive", "sorted")
+		compareDirs(t, sortedDir, tmpDir)
+	})
+
+	t.Run("output-dir recursive mirrors directory structure", func(t *testing.T) {
+		srcDir := filepath.Join(testDataDir, "recursive", unsortedDir)
+		outDir := t.TempDir()
+
+		s := NewSorter(&Params{Recursive: true, OutputDir: outDir}, afero.NewOsFs())
+		if err := s.run(srcDir); err != nil {
+			t.Fatalf("recursive output-dir sort failed: %v", err)
+		}
+
+		// Compare each file against the expected sorted output.
+		expectedDir := filepath.Join(testDataDir, "recursive", "sorted")
+		compareDirs(t, expectedDir, outDir)
+	})
+
+	t.Run("check recursive detects unsorted files", func(t *testing.T) {
+		srcDir := filepath.Join(testDataDir, "recursive", unsortedDir)
+		s := NewSorter(&Params{Recursive: true, Check: true}, afero.NewOsFs())
+		err := s.run(srcDir)
+		if err == nil {
+			t.Fatal("expected check error for unsorted recursive target, got nil")
+		}
+		if !errors.Is(err, ErrCheckFailed) {
+			t.Fatalf("expected ErrCheckFailed, got: %v", err)
+		}
+	})
+
+	t.Run("check recursive passes on sorted files", func(t *testing.T) {
+		sortedRefDir := filepath.Join(testDataDir, "recursive", "sorted")
+		s := NewSorter(&Params{Recursive: true, Check: true}, afero.NewOsFs())
+		err := s.run(sortedRefDir)
+		if err != nil {
+			t.Fatalf("expected no error for already-sorted recursive target, got: %v", err)
+		}
+	})
+
+	t.Run("recursive requires directory target", func(t *testing.T) {
+		dir := t.TempDir()
+		filePath := filepath.Join(dir, "main.tf")
+		if err := os.WriteFile(filePath, []byte("resource \"a\" \"b\" {}\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		s := NewSorter(&Params{Recursive: true}, afero.NewOsFs())
+		err := s.run(filePath)
+		if err == nil {
+			t.Fatal("expected error for file target with --recursive, got nil")
+		}
+		if !strings.Contains(err.Error(), "recursive flag requires a directory target") {
+			t.Errorf("unexpected error message: %v", err)
+		}
+	})
+
+	t.Run("recursive with exclude skips matching directories", func(t *testing.T) {
+		memFS := afero.NewMemMapFs()
+		_ = memFS.MkdirAll("/root/.terraform/modules", 0755)
+		_ = memFS.MkdirAll("/root/live", 0755)
+		_ = afero.WriteFile(memFS, "/root/.terraform/modules/main.tf", []byte("resource \"b\" \"z\" {}\nresource \"a\" \"y\" {}\n"), 0644)
+		_ = afero.WriteFile(memFS, "/root/live/main.tf", []byte("resource \"b\" \"z\" {}\nresource \"a\" \"y\" {}\n"), 0644)
+
+		outDir := "/out"
+		_ = memFS.MkdirAll(outDir, 0755)
+
+		s := NewSorter(&Params{
+			Recursive: true,
+			OutputDir: outDir,
+			Excludes:  []string{".terraform/**"},
+		}, memFS)
+		if err := s.run("/root"); err != nil {
+			t.Fatalf("recursive with exclude failed: %v", err)
+		}
+
+		// live/main.tf should exist in output.
+		if _, err := memFS.Stat(filepath.Join(outDir, "live", "main.tf")); err != nil {
+			t.Error("expected live/main.tf in output dir")
+		}
+	})
+}
+
+// copyDir copies all files from src into dst recursively.
+func copyDir(t *testing.T, src, dst string) {
+	t.Helper()
+	err := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(src, path)
+		target := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(target, 0755)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, data, info.Mode())
+	})
+	if err != nil {
+		t.Fatalf("copyDir failed: %v", err)
+	}
+}
+
+// compareDirs compares all .tf files in expectedDir against the corresponding
+// files in actualDir.
+func compareDirs(t *testing.T, expectedDir, actualDir string) {
+	t.Helper()
+	err := filepath.Walk(expectedDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || !strings.HasSuffix(info.Name(), ".tf") {
+			return nil
+		}
+		rel, _ := filepath.Rel(expectedDir, path)
+		expectedBytes, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		actualPath := filepath.Join(actualDir, rel)
+		actualBytes, err := os.ReadFile(actualPath)
+		if err != nil {
+			t.Errorf("expected file %s not found in output: %v", rel, err)
+			return nil
+		}
+		if string(expectedBytes) != string(actualBytes) {
+			t.Errorf("file %s differs:\n--- expected ---\n%s\n--- actual ---\n%s", rel, string(expectedBytes), string(actualBytes))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("compareDirs walk failed: %v", err)
+	}
 }

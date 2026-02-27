@@ -61,24 +61,41 @@ func (s *Sorter) run(target string) error {
 		}
 	}
 
-	// 2. Resolve target files
+	// 2. Handle recursive mode: process each directory independently.
+	if s.params.Recursive {
+		info, err := s.getPathInfo(target)
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("the recursive flag requires a directory target")
+		}
+		return s.runRecursive(target)
+	}
+
+	return s.runSingle(target)
+}
+
+// runSingle processes a single target (file or directory).
+func (s *Sorter) runSingle(target string) error {
+	// Resolve target files
 	files, err := s.getFilesFromTarget(target)
 	if err != nil {
 		return fmt.Errorf("could not get files from target: %w", err)
 	}
 
-	// 3. Sort
+	// Sort
 	sortedFiles, err := s.sortFiles(files)
 	if err != nil {
 		return fmt.Errorf("could not sort files: %w", err)
 	}
 
-	// 4. Check mode — compare and return without writing
+	// Check mode — compare and return without writing
 	if s.params.Check {
 		return s.runCheckMode(target, files, sortedFiles)
 	}
 
-	// 5. Resolve output dir for inline mode
+	// Resolve output dir for inline mode
 	if s.params.Inline {
 		s.params.OutputDir, err = s.getDirectory(target)
 		if err != nil {
@@ -86,7 +103,7 @@ func (s *Sorter) run(target string) error {
 		}
 	}
 
-	// 6. Write or print
+	// Write or print
 	if s.params.OutputDir != "" {
 		if err := s.writeFiles(sortedFiles); err != nil {
 			return fmt.Errorf("could not write files: %w", err)
@@ -183,4 +200,73 @@ func (s *Sorter) resolveOriginalPath(target string, inputFiles []string, outputK
 	}
 
 	return "", fmt.Errorf("check: no original file found for output key %q", outputKey)
+}
+
+// runRecursive walks the target directory recursively, processing each
+// sub-directory that contains .tf files independently.
+func (s *Sorter) runRecursive(target string) error {
+	var firstCheckErr error
+
+	err := afero.Walk(s.fs, target, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			return nil
+		}
+
+		// Check if this directory has .tf files.
+		files, err := s.getFilesInFolder(path)
+		if err != nil {
+			return fmt.Errorf("could not get files in %s: %w", path, err)
+		}
+		if len(files) == 0 {
+			return nil
+		}
+
+		// Create a per-directory sorter with fresh cache and appropriate OutputDir.
+		dirParams := *s.params
+		dirParams.Recursive = false // prevent infinite recursion
+		if dirParams.Inline {
+			dirParams.OutputDir = path
+		} else if dirParams.OutputDir != "" {
+			// Mirror directory structure in the output dir.
+			rel, relErr := filepath.Rel(target, path)
+			if relErr == nil {
+				dirParams.OutputDir = filepath.Join(s.params.OutputDir, rel)
+			}
+		}
+
+		dirSorter := NewSorter(&dirParams, s.fs)
+		sortedFiles, sortErr := dirSorter.sortFiles(files)
+		if sortErr != nil {
+			return fmt.Errorf("could not sort files in %s: %w", path, sortErr)
+		}
+
+		if dirParams.Check {
+			if checkErr := dirSorter.runCheckMode(path, files, sortedFiles); checkErr != nil {
+				if firstCheckErr == nil {
+					firstCheckErr = checkErr
+				}
+			}
+			return nil
+		}
+
+		if dirParams.OutputDir != "" {
+			if writeErr := dirSorter.writeFiles(sortedFiles); writeErr != nil {
+				return fmt.Errorf("could not write files in %s: %w", path, writeErr)
+			}
+		} else {
+			for _, body := range sortedFiles {
+				fmt.Print(string(body))
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+	return firstCheckErr
 }

@@ -33,6 +33,8 @@ type Params struct {
 	// Otherwise, the sorted files will be printed to stdout.
 	// Conflicts with the inline flag.
 	OutputDir string `yaml:"output-dir"`
+	// If the recursive flag is set, nested directories are traversed.
+	Recursive bool `yaml:"recursive"`
 	// If the remove-comments flag is set, the comments will be removed from the files.
 	// Otherwise, the comments will be preserved.
 	RemoveComments bool `yaml:"remove-comments"`

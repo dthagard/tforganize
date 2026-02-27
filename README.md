@@ -44,6 +44,12 @@ Split blocks by type (creates `variables.tf`, `outputs.tf`, `checks.tf`, `import
 tforganize sort --group-by-type --output-dir ./sorted
 ```
 
+Sort all nested directories recursively:
+
+```bash
+tforganize sort --recursive --inline .
+```
+
 Keep a copyright header while stripping other comments:
 
 ```bash
@@ -61,16 +67,17 @@ tforganize sort \
 Usage: tforganize sort <file | folder> [flags]
 
 Flags:
-  -g, --group-by-type           write each block type to its default file (see table below)
-  -i, --inline                  rewrite files in place (otherwise write to --output-dir)
-  -o, --output-dir string       directory for sorted files (required unless --inline)
-  -r, --remove-comments         drop all comments except headers kept via --keep-header
-  -e, --has-header              treat files as having a header matched by --header-pattern
-  -p, --header-pattern string   regex or multi-line string that matches the header block
-  -k, --keep-header             preserve the matched header in the output (requires --has-header and pattern)
-  -x, --exclude stringArray     glob pattern to exclude from sorting (repeatable; supports **)
       --config string           YAML config path (default $HOME/.tforganize.yaml)
   -d, --debug                   enable verbose logging
+  -x, --exclude stringArray     glob pattern to exclude from sorting (repeatable; supports **)
+  -g, --group-by-type           write each block type to its default file (see table below)
+  -e, --has-header              treat files as having a header matched by --header-pattern
+  -p, --header-pattern string   regex or multi-line string that matches the header block
+  -i, --inline                  rewrite files in place (otherwise write to --output-dir)
+  -k, --keep-header             preserve the matched header in the output (requires --has-header and pattern)
+  -o, --output-dir string       directory for sorted files (required unless --inline)
+  -R, --recursive               sort all nested directories (each directory independently)
+  -r, --remove-comments         drop all comments except headers kept via --keep-header
 ```
 
 ## Exclude files
@@ -129,14 +136,15 @@ Key fields:
 
 | Key              | Description                                  |
 |------------------|----------------------------------------------|
+| `exclude`        | List of glob patterns to exclude             |
 | `group-by-type`  | Same as `--group-by-type`                    |
-| `inline`         | Same as `--inline`                           |
-| `output-dir`     | Same as `--output-dir`                       |
-| `remove-comments`| Same as `--remove-comments`                  |
 | `has-header`     | Indicates a header block exists              |
 | `header-pattern` | Multi-line string or regex used to match header |
+| `inline`         | Same as `--inline`                           |
 | `keep-header`    | Re-emit the matched header (requires the two options above) |
-| `exclude`        | List of glob patterns to exclude             |
+| `output-dir`     | Same as `--output-dir`                       |
+| `recursive`      | Same as `--recursive`                        |
+| `remove-comments`| Same as `--remove-comments`                  |
 
 `tforganize` refuses to run with `keep-header: true` unless `has-header` is true **and** `header-pattern` is non-empty — the same validation applies to CLI flags.
 
