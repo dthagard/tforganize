@@ -1,0 +1,8 @@
+FROM alpine:3.19.1
+
+RUN apk add --no-cache git
+
+ARG TARGETPLATFORM
+COPY $TARGETPLATFORM/tforganize /usr/local/bin/
+
+ENTRYPOINT ["tforganize"]

@@ -1,4 +1,4 @@
-name: Release Go Binary
+name: Release
 
 on:
   release:
@@ -9,42 +9,29 @@ permissions:
   packages: write
 
 jobs:
-  releases-matrix:
-    name: Release Go Binary
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        # build and publish in parallel: linux/386, linux/amd64, linux/arm64, windows/386, windows/amd64, darwin/amd64, darwin/arm64
-        goos: [linux, windows, darwin]
-        goarch: ["386", amd64, arm64]
-        exclude:
-          - goarch: "386"
-            goos: darwin
-          - goarch: arm64
-            goos: windows
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - uses: wangyoucao577/go-release-action@279495102627de7960cbc33434ab01a12bae144b # v1
-        with:
-          binary_name: "tforganize"
-          extra_files: LICENSE README.md
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          goarch: ${{ matrix.goarch }}
-          goos: ${{ matrix.goos }}
-          goversion: "https://dl.google.com/go/go1.20.4.linux-amd64.tar.gz"
-          pre_command: make configure
-  docker:
+  goreleaser:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - id: pre-step
-        shell: bash
-        run: echo "release-version=$(echo ${GITHUB_REF:10})" >> $GITHUB_OUTPUT
-      - name: Publish to Registry
-        uses: elgohr/Publish-Docker-Github-Action@4feac4d53e4e55dcc5d3e2ad0ed2e0a76028ff7a # v5
         with:
-          name: dthagard/tforganize/tforganize
-          password: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: "go.mod"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
           registry: ghcr.io
-          tags: "latest,${{ steps.pre-step.outputs.release-version }}"
           username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
+        with:
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
