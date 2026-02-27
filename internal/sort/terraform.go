@@ -71,6 +71,12 @@ var (
 			"pre":  []string{"source", "version", "providers", "count", "for_each"},
 			"post": []string{"depends_on"},
 		},
+		// output block: https://developer.hashicorp.com/terraform/language/values/outputs
+		// description and value first, sensitive/precondition/depends_on last.
+		"output": {
+			"pre":  []string{"description", "value"},
+			"post": []string{"sensitive", "precondition", "depends_on"},
+		},
 		// moved block: https://developer.hashicorp.com/terraform/language/modules/develop/refactoring
 		// Required: from, to.
 		"moved": {
