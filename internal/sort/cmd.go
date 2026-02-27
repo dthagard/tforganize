@@ -1,6 +1,10 @@
 package sort
 
 import (
+	"fmt"
+	"io"
+	"os"
+
 	"github.com/spf13/cobra"
 )
 
@@ -9,18 +13,49 @@ var flags = &Params{}
 
 func GetCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Args:    cobra.ExactArgs(1),
-		Example: `tforganize sort main.tf`,
-		Long:    `Sort reads a Terraform file or folder and sorts the resources found alphabetically ascending by resource type and name.`,
+		Args: cobra.MaximumNArgs(1),
+		Example: `  tforganize sort main.tf
+  tforganize sort ./terraform/
+  cat main.tf | tforganize sort -`,
+		Long: `Sort reads a Terraform file or folder and sorts the resources found alphabetically ascending by resource type and name.
+
+When the argument is "-" or omitted and stdin is piped, input is read from stdin and the sorted output is written to stdout.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Determine if we should read from stdin.
+			readStdin := false
+			if len(args) == 0 {
+				// No args: check if stdin is a pipe.
+				stat, _ := os.Stdin.Stat()
+				if stat != nil && (stat.Mode()&os.ModeCharDevice) == 0 {
+					readStdin = true
+				} else {
+					return fmt.Errorf("no target specified; provide a file/folder path or pipe content via stdin")
+				}
+			} else if args[0] == "-" {
+				readStdin = true
+			}
+
+			if readStdin {
+				if flags.Inline {
+					return fmt.Errorf("the --inline flag cannot be used with stdin")
+				}
+				content, err := io.ReadAll(os.Stdin)
+				if err != nil {
+					return fmt.Errorf("could not read stdin: %w", err)
+				}
+				sorted, err := SortBytes(content, "stdin.tf", flags)
+				if err != nil {
+					return err
+				}
+				fmt.Print(string(sorted))
+				return nil
+			}
+
 			return Sort(args[0], flags)
 		},
 		Short: "Sort a Terraform file or folder.",
-		Use:   "sort <file | folder>",
+		Use:   "sort [file | folder | -]",
 	}
-
-	// NOTE: SetFileSystem() call removed — Sort() now creates its own
-	// filesystem internally via NewSorter.
 
 	setFlags(cmd)
 

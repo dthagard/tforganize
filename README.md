@@ -12,6 +12,7 @@
 - **Terraform-aware meta args** – `count`, `for_each`, `providers`, `moved`, `removed`, `check`, and friends are placed exactly where Terraform expects them.
 - **Group-by-type output** – `tforganize sort -g` rewrites files into logical targets (`variables.tf`, `outputs.tf`, `checks.tf`, `imports.tf`, `main.tf`, …).
 - **Header/comment control** – strip comments entirely, preserve them, or keep/apply a custom header banner.
+- **Stdin support** – pipe HCL content via stdin (`cat main.tf | tforganize sort -`) for easy integration with other tools.
 - **Inline or out-of-place** – update files in place (`--inline`) or emit to an output directory for review/CI.
 - **Configurable** – every flag has a YAML counterpart so you can save defaults in `.tforganize.yaml` or supply `--config`.
 - **CI friendly** – published as a Go binary and as `ghcr.io/dthagard/tforganize/tforganize:latest` for Docker/GitLab/GitHub runners.
@@ -50,6 +51,12 @@ Sort all nested directories recursively:
 tforganize sort --recursive --inline .
 ```
 
+Sort from stdin:
+
+```bash
+cat main.tf | tforganize sort -
+```
+
 Preview changes without writing anything:
 
 ```bash
@@ -70,7 +77,7 @@ tforganize sort \
 ## CLI reference (trimmed)
 
 ```text
-Usage: tforganize sort <file | folder> [flags]
+Usage: tforganize sort [file | folder | -] [flags]
 
 Flags:
   -c, --check                   exit non-zero if any file would change (dry-run mode)
