@@ -1,8 +1,6 @@
 module github.com/dthagard/tforganize
 
-go 1.23.0
-
-toolchain go1.23.3
+go 1.23.3
 
 require (
 	github.com/bmatcuk/doublestar/v4 v4.10.0
