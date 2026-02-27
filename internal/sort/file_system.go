@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
 	log "github.com/sirupsen/logrus"
@@ -217,6 +218,19 @@ func (s *Sorter) getLinesFromFile(filename string) ([]string, error) {
 	return lines, nil
 }
 
+// cacheLinesFromBytes splits raw content into lines and stores them in the
+// lines cache under the given filename.
+func (s *Sorter) cacheLinesFromBytes(content []byte, filename string) {
+	lines := strings.Split(string(content), "\n")
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	s.linesCache[filename] = lines
+	if abs, err := filepath.Abs(filename); err == nil && abs != filename {
+		s.linesCache[abs] = lines
+	}
+}
+
 // getFileNameFromPath returns the filename from a path.
 func getFileNameFromPath(path string) string {
 	log.WithField("path", path).Traceln("Starting getFileNameFromPath")
@@ -224,36 +238,22 @@ func getFileNameFromPath(path string) string {
 	return filepath.Base(path)
 }
 
-// combineFiles combines a list of files into a single file.
-func (s *Sorter) combineFiles(inputFilePaths []string) (string, error) {
+// combineFiles combines a list of files into a single in-memory byte buffer.
+func (s *Sorter) combineFiles(inputFilePaths []string) ([]byte, error) {
 	log.WithField("inputFilePaths", inputFilePaths).Traceln("Starting combineFiles")
-
-	// Create temporary file path
-	tempDir := s.afs.GetTempDir("tforganize/")
-
-	// Create the output file
-	outputFile, err := s.afs.TempFile(tempDir, fmt.Sprintf("%v.tf", os.Getuid()))
-	if err != nil {
-		return "", fmt.Errorf("could not create temporary file: %w", err)
-	}
-	defer outputFile.Close()
 
 	var buffer []byte
 	// Iterate over the input file paths
 	for _, inputPath := range inputFilePaths {
 		inputFileBytes, err := s.afs.ReadFile(inputPath)
 		if err != nil {
-			return "", fmt.Errorf("could not read file: %w", err)
+			return nil, fmt.Errorf("could not read file: %w", err)
 		}
 		buffer = append(buffer, inputFileBytes...)
 	}
 
-	if _, err = outputFile.Write(buffer); err != nil {
-		return "", fmt.Errorf("could not write temporary file: %w", err)
-	}
-
 	log.Debugln("Files combined successfully.")
-	return outputFile.Name(), nil
+	return buffer, nil
 }
 
 // writeFiles writes all of the processed files to the filesystem.
