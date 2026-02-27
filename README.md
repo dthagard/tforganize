@@ -19,13 +19,22 @@
 
 ## Installation
 
-> Requires Go **1.20+** (or use the Docker image below).
+### Homebrew
+
+```bash
+brew tap dthagard/tap
+brew install tforganize
+```
+
+### Go
+
+> Requires Go **1.20+**
 
 ```bash
 go install github.com/dthagard/tforganize@latest
 ```
 
-Or run straight from the container registry:
+### Docker
 
 ```bash
 docker run --rm -v "$(pwd)":/tforganize -w /tforganize ghcr.io/dthagard/tforganize/tforganize:latest sort -i .
