@@ -29,7 +29,7 @@ Enter
 Sleep 300ms
 
 # Left pane: run cat directly (no interactive shell = no prompt clutter)
-Type "tmux -f /dev/null -L demo new-session -d -s demo 'tput cup 3 0 && cat demo/main.tf && sleep 300'"
+Type "tmux -f /dev/null -L demo new-session -d -s demo 'tput cup 1 0 && cat demo/main.tf && sleep 300'"
 Enter
 Sleep 500ms
 
