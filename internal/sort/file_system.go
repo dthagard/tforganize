@@ -158,10 +158,13 @@ func (s *Sorter) isExcluded(targetDir string, filePath string) (bool, error) {
 func (s *Sorter) getLinesFromFile(filename string) ([]string, error) {
 	log.WithField("filename", filename).Traceln("Starting getLinesFromFile")
 
+	s.mu.Lock()
 	if lines, ok := s.linesCache[filename]; ok {
+		s.mu.Unlock()
 		log.WithField("filename", filename).Traceln("getLinesFromFile cache hit")
 		return lines, nil
 	}
+	s.mu.Unlock()
 
 	file, err := s.afs.Open(filename)
 	if err != nil {
@@ -181,7 +184,9 @@ func (s *Sorter) getLinesFromFile(filename string) ([]string, error) {
 		return nil, err
 	}
 
+	s.mu.Lock()
 	s.linesCache[filename] = lines
+	s.mu.Unlock()
 	return lines, nil
 }
 
@@ -192,10 +197,12 @@ func (s *Sorter) cacheLinesFromBytes(content []byte, filename string) {
 	if len(lines) > 0 && lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1]
 	}
+	s.mu.Lock()
 	s.linesCache[filename] = lines
 	if abs, err := filepath.Abs(filename); err == nil && abs != filename {
 		s.linesCache[abs] = lines
 	}
+	s.mu.Unlock()
 }
 
 // getFileNameFromPath returns the filename from a path.

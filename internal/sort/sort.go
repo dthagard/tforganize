@@ -9,6 +9,7 @@ import (
 	hclsyntax "github.com/hashicorp/hcl/v2/hclsyntax"
 	hclwrite "github.com/hashicorp/hcl/v2/hclwrite"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -29,14 +30,32 @@ func (s *Sorter) sortFiles(files []string) (map[string][]byte, error) {
 		return s.sortFileBytes(combinedBytes, "combined.tf")
 	}
 
-	output := map[string][]byte{}
-	for _, f := range files {
-		sortedFileBytes, err := s.sortFile(f)
-		if err != nil {
-			return nil, fmt.Errorf("could not sort file: %w", err)
-		}
+	// Process files in parallel when there are multiple files.
+	type fileResult struct {
+		sorted map[string][]byte
+	}
+	results := make([]fileResult, len(files))
 
-		for k, v := range sortedFileBytes {
+	g := new(errgroup.Group)
+	for i, f := range files {
+		g.Go(func() error {
+			sortedFileBytes, err := s.sortFile(f)
+			if err != nil {
+				return fmt.Errorf("could not sort file %s: %w", f, err)
+			}
+			results[i] = fileResult{sorted: sortedFileBytes}
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
+	// Merge results sequentially to preserve deterministic output order.
+	output := map[string][]byte{}
+	for _, r := range results {
+		for k, v := range r.sorted {
 			output[k] = append(output[k], v...)
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	gosort "sort"
 	"strings"
+	"sync"
 
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/spf13/afero"
@@ -18,6 +19,7 @@ type Sorter struct {
 	params     *Params
 	fs         afero.Fs
 	afs        *afero.Afero
+	mu         sync.Mutex
 	linesCache map[string][]string
 }
 
