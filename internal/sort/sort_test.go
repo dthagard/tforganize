@@ -175,6 +175,36 @@ func TestSortFile(t *testing.T) {
 		path := filepath.Join(testDataDir, "multiple_nested_blocks")
 		testSortFile(path, t)
 	})
+
+	t.Run("data blocks", func(t *testing.T) {
+		path := filepath.Join(testDataDir, "data_blocks")
+		testSortFile(path, t)
+	})
+
+	t.Run("module blocks", func(t *testing.T) {
+		path := filepath.Join(testDataDir, "module_blocks")
+		testSortFile(path, t)
+	})
+
+	t.Run("terraform block", func(t *testing.T) {
+		path := filepath.Join(testDataDir, "terraform_block")
+		testSortFile(path, t)
+	})
+
+	t.Run("locals block", func(t *testing.T) {
+		path := filepath.Join(testDataDir, "locals_block")
+		testSortFile(path, t)
+	})
+
+	t.Run("heredoc syntax", func(t *testing.T) {
+		path := filepath.Join(testDataDir, "heredoc_syntax")
+		testSortFile(path, t)
+	})
+
+	t.Run("import and check blocks", func(t *testing.T) {
+		path := filepath.Join(testDataDir, "import_check_blocks")
+		testSortFile(path, t)
+	})
 }
 
 // testSortFile is a helper function for TestSortFile
