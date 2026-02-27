@@ -18,18 +18,21 @@ Set Theme "Dracula"
 Hide
 Set TypingSpeed 1ms
 
-# Reset fixture
+# Reset fixture and create a label file for the left pane
 Type "cp demo/main.tf.orig demo/main.tf && clear"
 Enter
 Sleep 500ms
+Type "printf '# Before tforganize\n\n' > /tmp/demo-label.txt"
+Enter
+Sleep 200ms
 
 # Launch an isolated tmux (no user config, dedicated socket)
 Type "tmux -f /dev/null -L demo kill-server 2>/dev/null; true"
 Enter
 Sleep 300ms
 
-# Left pane: run cat directly (no interactive shell = no prompt clutter)
-Type "tmux -f /dev/null -L demo new-session -d -s demo 'tput cup 3 0 && cat demo/main.tf && sleep 300'"
+# Left pane: show label then file contents (no interactive shell = no prompt clutter)
+Type "tmux -f /dev/null -L demo new-session -d -s demo 'tput cup 1 0 && cat /tmp/demo-label.txt demo/main.tf && sleep 300'"
 Enter
 Sleep 500ms
 

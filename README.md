@@ -6,6 +6,27 @@
 
 ![tforganize demo](demo/demo.gif)
 
+## Table of contents
+
+- [Features at a glance](#features-at-a-glance)
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [CLI reference](#cli-reference)
+  - [Exit codes](#exit-codes)
+  - [Environment variables](#environment-variables)
+- [Exclude files](#exclude-files)
+- [Group-by-type target files](#group-by-type-target-files)
+- [Configuration file](#configuration-file)
+- [Automation examples](#automation-examples)
+  - [pre-commit](#pre-commit)
+  - [GitHub Actions](#github-actions)
+  - [GitLab CI](#gitlab-ci)
+  - [CircleCI](#circleci)
+  - [Azure Pipelines](#azure-pipelines)
+  - [Makefile loop](#makefile-loop)
+  - [Docker one-liner](#docker-one-liner)
+- [Contributing & support](#contributing--support)
+
 ## Features at a glance
 
 - **Deterministic sorting** – resources, modules, variables, outputs, checks, imports, etc. are emitted in a stable order.
