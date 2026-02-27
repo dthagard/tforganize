@@ -50,6 +50,12 @@ Sort all nested directories recursively:
 tforganize sort --recursive --inline .
 ```
 
+Preview changes without writing anything:
+
+```bash
+tforganize sort --diff .
+```
+
 Keep a copyright header while stripping other comments:
 
 ```bash
@@ -67,8 +73,10 @@ tforganize sort \
 Usage: tforganize sort <file | folder> [flags]
 
 Flags:
+  -c, --check                   exit non-zero if any file would change (dry-run mode)
       --config string           YAML config path (default $HOME/.tforganize.yaml)
   -d, --debug                   enable verbose logging
+      --diff                    show a unified diff of changes instead of writing files
   -x, --exclude stringArray     glob pattern to exclude from sorting (repeatable; supports **)
   -g, --group-by-type           write each block type to its default file (see table below)
   -e, --has-header              treat files as having a header matched by --header-pattern
@@ -136,6 +144,8 @@ Key fields:
 
 | Key              | Description                                  |
 |------------------|----------------------------------------------|
+| `check`          | Same as `--check`                            |
+| `diff`           | Same as `--diff`                             |
 | `exclude`        | List of glob patterns to exclude             |
 | `group-by-type`  | Same as `--group-by-type`                    |
 | `has-header`     | Indicates a header block exists              |

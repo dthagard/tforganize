@@ -37,5 +37,6 @@ func setFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().BoolVarP(&flags.RemoveComments, "remove-comments", "r", false, "remove comments in the sorted file(s)")
 	cmd.PersistentFlags().BoolVarP(&flags.Check, "check", "c", false, "check whether files are already sorted without writing changes; exits non-zero if any file would change")
 	cmd.PersistentFlags().BoolVarP(&flags.Recursive, "recursive", "R", false, "recursively sort all nested directories containing .tf files")
+	cmd.PersistentFlags().BoolVar(&flags.Diff, "diff", false, "show a unified diff of changes instead of writing files")
 	cmd.PersistentFlags().StringArrayVarP(&flags.Excludes, "exclude", "x", []string{}, "glob pattern to exclude from sorting (repeatable; supports **); e.g. --exclude '.terraform/**'")
 }

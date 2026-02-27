@@ -843,3 +843,124 @@ func compareDirs(t *testing.T, expectedDir, actualDir string) {
 		t.Fatalf("compareDirs walk failed: %v", err)
 	}
 }
+
+// TestDiff verifies that --diff mode produces unified diff output.
+func TestDiff(t *testing.T) {
+	t.Run("diff shows changes for unsorted file", func(t *testing.T) {
+		memFS := afero.NewMemMapFs()
+
+		content := `resource "aws_instance" "web" {
+  ami = "ami-12345"
+}
+
+resource "aws_instance" "app" {
+  ami = "ami-67890"
+}
+`
+		_ = memFS.MkdirAll("/test", 0755)
+		_ = afero.WriteFile(memFS, "/test/main.tf", []byte(content), 0644)
+
+		s := NewSorter(&Params{Diff: true}, memFS)
+		err := s.run("/test")
+		// Diff mode without --check should return nil even when files differ.
+		if err != nil {
+			t.Fatalf("diff mode returned unexpected error: %v", err)
+		}
+	})
+
+	t.Run("diff with check returns error for unsorted file", func(t *testing.T) {
+		memFS := afero.NewMemMapFs()
+
+		content := `resource "aws_instance" "web" {
+  ami = "ami-12345"
+}
+
+resource "aws_instance" "app" {
+  ami = "ami-67890"
+}
+`
+		_ = memFS.MkdirAll("/test", 0755)
+		_ = afero.WriteFile(memFS, "/test/main.tf", []byte(content), 0644)
+
+		s := NewSorter(&Params{Diff: true, Check: true}, memFS)
+		err := s.run("/test")
+		if err == nil {
+			t.Fatal("expected error with --diff --check on unsorted file, got nil")
+		}
+		if !errors.Is(err, ErrCheckFailed) {
+			t.Fatalf("expected ErrCheckFailed, got: %v", err)
+		}
+	})
+
+	t.Run("diff returns nil for already-sorted file", func(t *testing.T) {
+		memFS := afero.NewMemMapFs()
+
+		content := `resource "aws_instance" "app" {
+  ami = "ami-67890"
+}
+
+resource "aws_instance" "web" {
+  ami = "ami-12345"
+}
+`
+		_ = memFS.MkdirAll("/test", 0755)
+		_ = afero.WriteFile(memFS, "/test/main.tf", []byte(content), 0644)
+
+		s := NewSorter(&Params{Diff: true, Check: true}, memFS)
+		err := s.run("/test")
+		if err != nil {
+			t.Fatalf("expected nil for already-sorted file, got: %v", err)
+		}
+	})
+
+	t.Run("diff conflicts with output-dir", func(t *testing.T) {
+		s := NewSorter(&Params{Diff: true, OutputDir: "/out"}, afero.NewMemMapFs())
+		err := s.run("/test")
+		if err == nil || !strings.Contains(err.Error(), "diff flag conflicts with the output-dir flag") {
+			t.Fatalf("expected conflict error, got: %v", err)
+		}
+	})
+
+	t.Run("diff conflicts with inline", func(t *testing.T) {
+		s := NewSorter(&Params{Diff: true, Inline: true}, afero.NewMemMapFs())
+		err := s.run("/test")
+		if err == nil || !strings.Contains(err.Error(), "diff flag conflicts with the inline flag") {
+			t.Fatalf("expected conflict error, got: %v", err)
+		}
+	})
+}
+
+// TestUnifiedDiff verifies the unifiedDiff function directly.
+func TestUnifiedDiff(t *testing.T) {
+	t.Run("identical strings produce empty diff", func(t *testing.T) {
+		result := unifiedDiff("a.tf", "a.tf", "hello\n", "hello\n")
+		if result != "" {
+			t.Errorf("expected empty diff for identical strings, got:\n%s", result)
+		}
+	})
+
+	t.Run("different strings produce diff with hunks", func(t *testing.T) {
+		a := "line1\nline2\nline3\n"
+		b := "line1\nchanged\nline3\n"
+		result := unifiedDiff("a.tf", "b.tf", a, b)
+		if !strings.Contains(result, "--- a.tf") {
+			t.Error("expected --- header")
+		}
+		if !strings.Contains(result, "+++ b.tf") {
+			t.Error("expected +++ header")
+		}
+		if !strings.Contains(result, "-line2") {
+			t.Error("expected deletion of line2")
+		}
+		if !strings.Contains(result, "+changed") {
+			t.Error("expected insertion of changed")
+		}
+	})
+
+	t.Run("empty to non-empty shows all additions", func(t *testing.T) {
+		result := unifiedDiff("a.tf", "b.tf", "", "line1\nline2\n")
+		if !strings.Contains(result, "+line1") {
+			t.Error("expected additions")
+		}
+	})
+}
