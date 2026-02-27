@@ -93,7 +93,7 @@ func (s *Sorter) run(target string) error {
 		}
 	} else {
 		for _, body := range sortedFiles {
-			fmt.Println(string(body))
+			fmt.Print(string(body))
 		}
 	}
 
