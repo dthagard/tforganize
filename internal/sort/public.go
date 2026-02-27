@@ -38,6 +38,11 @@ type Params struct {
 	// If the diff flag is set, a unified diff of changes is printed to stdout
 	// instead of writing files.
 	Diff bool `yaml:"diff"`
+	// If NoSortByType is set, blocks are sorted alphabetically by type name
+	// instead of using the logical type priority ordering (terraform → variable
+	// → locals → data → resource → module → import → moved → removed → check
+	// → output).
+	NoSortByType bool `yaml:"no-sort-by-type"`
 	// If the remove-comments flag is set, the comments will be removed from the files.
 	// Otherwise, the comments will be preserved.
 	RemoveComments bool `yaml:"remove-comments"`

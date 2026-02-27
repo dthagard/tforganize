@@ -29,7 +29,7 @@
 
 ## Features at a glance
 
-- **Deterministic sorting** – resources, modules, variables, outputs, checks, imports, etc. are emitted in a stable order.
+- **Deterministic sorting** – blocks are sorted by logical type priority (`terraform` → `variable` → `locals` → `data` → `resource` → `module` → `import` → `moved` → `removed` → `check` → `output`), then alphabetically by label within each type group. Use `--no-sort-by-type` to revert to plain alphabetical type ordering.
 - **Terraform-aware meta args** – `count`, `for_each`, `providers`, `moved`, `removed`, `check`, and friends are placed exactly where Terraform expects them.
 - **Group-by-type output** – `tforganize sort -g` rewrites files into logical targets (`variables.tf`, `outputs.tf`, `checks.tf`, `imports.tf`, `main.tf`, …).
 - **Header/comment control** – strip comments entirely, preserve them, or keep/apply a custom header banner.
@@ -126,6 +126,7 @@ Flags:
   -p, --header-pattern string   regex or multi-line string that matches the header block
   -i, --inline                  rewrite files in place (otherwise write to --output-dir)
   -k, --keep-header             preserve the matched header in the output (requires --has-header and pattern)
+      --no-sort-by-type         sort blocks alphabetically by type instead of using logical type ordering
   -o, --output-dir string       directory for sorted files (required unless --inline)
   -R, --recursive               sort all nested directories (each directory independently)
   -r, --remove-comments         drop all comments except headers kept via --keep-header
@@ -148,6 +149,7 @@ All flags can also be set via environment variables prefixed with `TFORGANIZE_`.
 ```bash
 TFORGANIZE_INLINE=true tforganize sort .
 TFORGANIZE_GROUP_BY_TYPE=true tforganize sort --output-dir ./sorted .
+TFORGANIZE_NO_SORT_BY_TYPE=true tforganize sort .
 TFORGANIZE_EXCLUDE='.terraform/**' tforganize sort .
 ```
 
@@ -215,6 +217,7 @@ Key fields:
 | `header-pattern` | Multi-line string or regex used to match header |
 | `inline`         | Same as `--inline`                           |
 | `keep-header`    | Re-emit the matched header (requires the two options above) |
+| `no-sort-by-type`| Same as `--no-sort-by-type`                  |
 | `output-dir`     | Same as `--output-dir`                       |
 | `recursive`      | Same as `--recursive`                        |
 | `remove-comments`| Same as `--remove-comments`                  |

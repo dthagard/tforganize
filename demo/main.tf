@@ -1,9 +1,13 @@
-output "instance_ip" {
-  value = aws_instance.web.public_ip
+variable "ami_id" {
+  description = "AMI to use for the web instance"
 }
 
-output "vpc_id" {
-  value = aws_vpc.main.id
+variable "instance_type" {
+  default = "t3.micro"
+}
+
+variable "region" {
+  default = "us-east-1"
 }
 
 resource "aws_instance" "web" {
@@ -20,14 +24,10 @@ resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
 }
 
-variable "ami_id" {
-  description = "AMI to use for the web instance"
+output "instance_ip" {
+  value = aws_instance.web.public_ip
 }
 
-variable "instance_type" {
-  default = "t3.micro"
-}
-
-variable "region" {
-  default = "us-east-1"
+output "vpc_id" {
+  value = aws_vpc.main.id
 }

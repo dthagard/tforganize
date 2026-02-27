@@ -124,7 +124,10 @@ func (s *Sorter) sortBlocks(blocks hclsyntax.Blocks) (map[string][]byte, error) 
 	// Initialize the output
 	output := map[string][]byte{}
 
-	sort.Stable(BlockListSorter(blocks))
+	sort.Stable(BlockListSorter{
+		blocks:     blocks,
+		sortByType: !s.params.NoSortByType,
+	})
 	log.WithField("blocks", blocks).Debugln("Got back sorted blocks from BlockListSorter")
 
 	// Iterate through each block and order its attributes and child blocks

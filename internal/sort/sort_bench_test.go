@@ -46,6 +46,6 @@ func BenchmarkBlockListSorter(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		cp := make([]*hclsyntax.Block, len(blocks))
 		copy(cp, blocks)
-		sort.Stable(BlockListSorter(cp))
+		sort.Stable(BlockListSorter{blocks: cp, sortByType: true})
 	}
 }

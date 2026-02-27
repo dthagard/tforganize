@@ -1,3 +1,14 @@
+import {
+  to = aws_instance.legacy
+  id = "i-0123456789abcdef0"
+}
+
+import {
+  to       = aws_s3_bucket.archive
+  id       = "my-archive-bucket"
+  provider = aws.west
+}
+
 check "api_health" {
   assert {
     condition     = true
@@ -14,15 +25,4 @@ check "db_health" {
     condition     = data.http.db_check.status_code == 200
     error_message = "DB health check failed"
   }
-}
-
-import {
-  to = aws_instance.legacy
-  id = "i-0123456789abcdef0"
-}
-
-import {
-  to       = aws_s3_bucket.archive
-  id       = "my-archive-bucket"
-  provider = aws.west
 }
