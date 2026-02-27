@@ -53,6 +53,12 @@ func (s *Sorter) run(target string) error {
 	if s.params.Check && s.params.OutputDir != "" {
 		return fmt.Errorf("the check flag conflicts with the output-dir flag")
 	}
+	if s.params.Diff && s.params.OutputDir != "" {
+		return fmt.Errorf("the diff flag conflicts with the output-dir flag")
+	}
+	if s.params.Diff && s.params.Inline {
+		return fmt.Errorf("the diff flag conflicts with the inline flag")
+	}
 
 	// 1a. Validate exclude glob patterns.
 	for _, p := range s.params.Excludes {
@@ -88,6 +94,11 @@ func (s *Sorter) runSingle(target string) error {
 	sortedFiles, err := s.sortFiles(files)
 	if err != nil {
 		return fmt.Errorf("could not sort files: %w", err)
+	}
+
+	// Diff mode — show unified diff of changes
+	if s.params.Diff {
+		return s.runDiffMode(target, files, sortedFiles)
 	}
 
 	// Check mode — compare and return without writing
@@ -269,4 +280,61 @@ func (s *Sorter) runRecursive(target string) error {
 		return err
 	}
 	return firstCheckErr
+}
+
+// runDiffMode prints a unified diff for each file that would change and
+// optionally returns ErrCheckFailed when combined with --check.
+func (s *Sorter) runDiffMode(target string, inputFiles []string, sortedFiles map[string][]byte) error {
+	var changed []string
+
+	// Collect sorted output keys deterministically.
+	keys := make([]string, 0, len(sortedFiles))
+	for k := range sortedFiles {
+		keys = append(keys, k)
+	}
+	gosort.Strings(keys)
+
+	for _, outputKey := range keys {
+		sortedBytes := sortedFiles[outputKey]
+
+		originalPath, err := s.resolveOriginalPath(target, inputFiles, outputKey)
+		if err != nil {
+			// New file would be created — show entire content as additions.
+			absPath, absErr := filepath.Abs(outputKey)
+			if absErr != nil {
+				absPath = outputKey
+			}
+			diff := unifiedDiff(absPath, absPath, "", string(sortedBytes))
+			if diff != "" {
+				fmt.Print(diff)
+				changed = append(changed, absPath)
+			}
+			continue
+		}
+
+		originalBytes, err := s.afs.ReadFile(originalPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				diff := unifiedDiff(originalPath, originalPath, "", string(sortedBytes))
+				if diff != "" {
+					fmt.Print(diff)
+					changed = append(changed, originalPath)
+				}
+				continue
+			}
+			return fmt.Errorf("diff: could not read original file %s: %w", originalPath, err)
+		}
+
+		diff := unifiedDiff(originalPath, originalPath, string(originalBytes), string(sortedBytes))
+		if diff != "" {
+			fmt.Print(diff)
+			changed = append(changed, originalPath)
+		}
+	}
+
+	if s.params.Check && len(changed) > 0 {
+		return fmt.Errorf("%w: %s", ErrCheckFailed, strings.Join(changed, ", "))
+	}
+
+	return nil
 }
