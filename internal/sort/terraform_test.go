@@ -14,6 +14,54 @@ func TestGetMetaArguments(t *testing.T) {
 		wantPre   []string
 		wantPost  []string
 	}{
+		{
+			name:      "resource block",
+			blockType: "resource",
+			wantPre:   []string{"count", "for_each", "provider"},
+			wantPost:  []string{"provisioner", "lifecycle", "depends_on", "triggers_replace"},
+		},
+		{
+			name:      "variable block",
+			blockType: "variable",
+			wantPre:   []string{"description", "type", "default", "nullable", "sensitive"},
+			wantPost:  []string{"validation"},
+		},
+		{
+			name:      "module block",
+			blockType: "module",
+			wantPre:   []string{"source", "version", "providers", "count", "for_each"},
+			wantPost:  []string{"depends_on"},
+		},
+		{
+			name:      "data block",
+			blockType: "data",
+			wantPre:   []string{"count", "for_each", "provider"},
+			wantPost:  []string{"provisioner", "depends_on"},
+		},
+		{
+			name:      "terraform block",
+			blockType: "terraform",
+			wantPre:   []string{"required_version", "required_providers"},
+			wantPost:  []string{},
+		},
+		{
+			name:      "dynamic block",
+			blockType: "dynamic",
+			wantPre:   []string{"for_each"},
+			wantPost:  []string{},
+		},
+		{
+			name:      "local block",
+			blockType: "local",
+			wantPre:   []string{},
+			wantPost:  []string{},
+		},
+		{
+			name:      "check block",
+			blockType: "check",
+			wantPre:   []string{"data"},
+			wantPost:  []string{},
+		},
 		/*********************************************************************/
 		// moved block: requires from and to (in that order), no post args.
 		/*********************************************************************/
