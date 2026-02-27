@@ -52,35 +52,35 @@ func TestSortInlineDoesNotMutateSettings(t *testing.T) {
 // continues) for each known fatal condition.
 func TestSortErrorPaths(t *testing.T) {
 	t.Run("nonexistent target", func(t *testing.T) {
-			err := Sort("nonexistent-path-xyz-does-not-exist", nil)
+		err := Sort("nonexistent-path-xyz-does-not-exist", nil)
 		if err == nil {
 			t.Fatal("expected error for nonexistent target, got nil")
 		}
 	})
 
 	t.Run("inline conflicts with group-by-type", func(t *testing.T) {
-			err := Sort(".", &Params{Inline: true, GroupByType: true})
+		err := Sort(".", &Params{Inline: true, GroupByType: true})
 		if err == nil {
 			t.Fatal("expected error when inline conflicts with group-by-type, got nil")
 		}
 	})
 
 	t.Run("inline conflicts with output-dir", func(t *testing.T) {
-			err := Sort(".", &Params{Inline: true, OutputDir: "/some/dir"})
+		err := Sort(".", &Params{Inline: true, OutputDir: "/some/dir"})
 		if err == nil {
 			t.Fatal("expected error when inline conflicts with output-dir, got nil")
 		}
 	})
 
 	t.Run("keep-header without has-header", func(t *testing.T) {
-			err := Sort(".", &Params{KeepHeader: true, HasHeader: false, HeaderPattern: "# header"})
+		err := Sort(".", &Params{KeepHeader: true, HasHeader: false, HeaderPattern: "# header"})
 		if err == nil {
 			t.Fatal("expected error when keep-header is set but has-header is false, got nil")
 		}
 	})
 
 	t.Run("keep-header with empty header-pattern", func(t *testing.T) {
-			err := Sort(".", &Params{KeepHeader: true, HasHeader: true, HeaderPattern: ""})
+		err := Sort(".", &Params{KeepHeader: true, HasHeader: true, HeaderPattern: ""})
 		if err == nil {
 			t.Fatal("expected error when keep-header is set but header-pattern is empty, got nil")
 		}
@@ -508,8 +508,8 @@ func TestSort(t *testing.T) {
 	/*********************************************************************/
 
 	t.Run("conflicting flags returns early", func(t *testing.T) {
-			dir := t.TempDir()
-		Sort(dir, &Params{Inline: true, GroupByType: true})
+		dir := t.TempDir()
+		_ = Sort(dir, &Params{Inline: true, GroupByType: true})
 	})
 
 	/*********************************************************************/
@@ -518,7 +518,7 @@ func TestSort(t *testing.T) {
 	/*********************************************************************/
 
 	t.Run("output dir writes sorted file", func(t *testing.T) {
-			dir := t.TempDir()
+		dir := t.TempDir()
 		outDir := t.TempDir()
 
 		content := `resource "aws_instance" "b_server" {
@@ -536,7 +536,9 @@ resource "aws_instance" "a_server" {
 			t.Fatal(err)
 		}
 
-		Sort(inputPath, &Params{OutputDir: outDir})
+		if err := Sort(inputPath, &Params{OutputDir: outDir}); err != nil {
+			t.Fatalf("Sort returned unexpected error: %v", err)
+		}
 
 		outBytes, err := os.ReadFile(filepath.Join(outDir, "main.tf"))
 		if err != nil {
@@ -560,7 +562,7 @@ resource "aws_instance" "a_server" {
 	/*********************************************************************/
 
 	t.Run("inline sorts file in place", func(t *testing.T) {
-			dir := t.TempDir()
+		dir := t.TempDir()
 
 		content := `resource "aws_instance" "b_server" {
   instance_type = "t2.micro"
@@ -577,7 +579,9 @@ resource "aws_instance" "a_server" {
 			t.Fatal(err)
 		}
 
-		Sort(inputPath, &Params{Inline: true})
+		if err := Sort(inputPath, &Params{Inline: true}); err != nil {
+			t.Fatalf("Sort returned unexpected error: %v", err)
+		}
 
 		outBytes, err := os.ReadFile(inputPath)
 		if err != nil {
@@ -601,7 +605,7 @@ resource "aws_instance" "a_server" {
 	/*********************************************************************/
 
 	t.Run("group by type splits blocks into type files", func(t *testing.T) {
-			dir := t.TempDir()
+		dir := t.TempDir()
 		outDir := t.TempDir()
 
 		content := `resource "aws_s3_bucket" "my_bucket" {
@@ -622,7 +626,9 @@ output "bucket_name" {
 			t.Fatal(err)
 		}
 
-		Sort(inputPath, &Params{GroupByType: true, OutputDir: outDir})
+		if err := Sort(inputPath, &Params{GroupByType: true, OutputDir: outDir}); err != nil {
+			t.Fatalf("Sort returned unexpected error: %v", err)
+		}
 
 		varBytes, err := os.ReadFile(filepath.Join(outDir, "variables.tf"))
 		if err != nil {
@@ -654,7 +660,7 @@ output "bucket_name" {
 	/*********************************************************************/
 
 	t.Run("remove comments strips comments from output", func(t *testing.T) {
-			dir := t.TempDir()
+		dir := t.TempDir()
 		outDir := t.TempDir()
 
 		content := `# This comment should be removed
@@ -671,7 +677,9 @@ resource "aws_s3_bucket" "alpha" {
 			t.Fatal(err)
 		}
 
-		Sort(inputPath, &Params{OutputDir: outDir, RemoveComments: true})
+		if err := Sort(inputPath, &Params{OutputDir: outDir, RemoveComments: true}); err != nil {
+			t.Fatalf("Sort returned unexpected error: %v", err)
+		}
 
 		outBytes, err := os.ReadFile(filepath.Join(outDir, "main.tf"))
 		if err != nil {

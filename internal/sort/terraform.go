@@ -98,7 +98,7 @@ var (
 			"post": []string{},
 		},
 		"variable": {
-			"pre": []string{"description", "type", "default", "nullable", "sensitive"},
+			"pre":  []string{"description", "type", "default", "nullable", "sensitive"},
 			"post": []string{"validation"},
 		},
 		"default": {

@@ -63,6 +63,11 @@ run: build
 test:
 	$(GOTEST) -v ./...
 
+# Lint target
+.PHONY: lint
+lint:
+	golangci-lint run ./...
+
 # Generate the test coverage report
 .PHONY: test_coverage
 test_coverage:
