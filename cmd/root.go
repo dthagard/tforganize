@@ -132,11 +132,11 @@ func bindFlags(cmd *cobra.Command, v *viper.Viper) {
 			// fmt.Sprintf("%v", val) would produce "[a b]" which pflag rejects.
 			if f.Value.Type() == "stringArray" || f.Value.Type() == "stringSlice" {
 				for _, s := range v.GetStringSlice(configName) {
-					cmd.Flags().Set(f.Name, s)
+					_ = cmd.Flags().Set(f.Name, s)
 				}
 			} else {
 				val := v.Get(configName)
-				cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val))
+				_ = cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val))
 			}
 		}
 	})

@@ -253,7 +253,6 @@ func TestBlockListSorterLess(t *testing.T) {
 	})
 }
 
-
 func TestGetNodeComment(t *testing.T) {
 	s := NewSorter(&Params{}, afero.NewMemMapFs())
 
