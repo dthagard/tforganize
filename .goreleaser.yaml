@@ -37,6 +37,14 @@ changelog:
       - "^docs:"
       - "^test:"
 
+homebrew_casks:
+  - repository:
+      owner: dthagard
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/dthagard/tforganize
+    description: "A CLI tool to sort and organize Terraform files"
+
 dockers_v2:
   - images:
       - "ghcr.io/dthagard/tforganize"
