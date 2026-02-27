@@ -10,7 +10,7 @@ Set Shell "zsh"
 Set TypingSpeed 75ms
 Set FontSize 22
 Set Width 1600
-Set Height 700
+Set Height 1100
 Set Theme "Dracula"
 
 # ---------- Hidden setup ----------
@@ -29,11 +29,14 @@ Enter
 Sleep 300ms
 
 # Left pane: run cat directly (no interactive shell = no prompt clutter)
-Type "tmux -f /dev/null -L demo new-session -d -s demo 'echo && cat demo/main.tf && sleep 300'"
+Type "tmux -f /dev/null -L demo new-session -d -s demo 'tput cup 3 0 && cat demo/main.tf && sleep 300'"
 Enter
 Sleep 500ms
 
-# Right pane: bash with minimal prompt
+# Right pane: bash with clean "$ " prompt
+Type "tmux -L demo set-environment -t demo PS1 '$ '"
+Enter
+Sleep 100ms
 Type "tmux -L demo split-window -h -t demo 'bash --norc --noprofile'"
 Enter
 Sleep 300ms
