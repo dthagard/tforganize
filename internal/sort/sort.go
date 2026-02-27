@@ -85,7 +85,14 @@ func (s *Sorter) sortBody(body *hclsyntax.Body) (map[string][]byte, error) {
 			log.Debugln("Adding header...")
 			buffer = s.addHeader(buffer)
 		}
-		output[k] = hclwrite.Format(buffer)
+		formatted := hclwrite.Format(buffer)
+
+		// Validate the formatted output is still valid HCL.
+		if _, diag := hclParseFn(formatted, k); diag.HasErrors() {
+			return nil, fmt.Errorf("sorted output for %s is not valid HCL: %s", k, diag.Error())
+		}
+
+		output[k] = formatted
 	}
 
 	return output, nil
