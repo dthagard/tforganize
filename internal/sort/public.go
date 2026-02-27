@@ -53,3 +53,23 @@ func Sort(target string, settings *Params) error {
 	s := NewSorter(settings, afero.NewOsFs())
 	return s.run(target)
 }
+
+// SortBytes sorts raw HCL content and returns the sorted bytes.
+// The filename parameter is used for error messages and HCL diagnostics.
+func SortBytes(content []byte, filename string, settings *Params) ([]byte, error) {
+	s := NewSorter(settings, afero.NewMemMapFs())
+	results, err := s.sortFileBytes(content, filename)
+	if err != nil {
+		return nil, err
+	}
+
+	// Combine all output files into a single byte slice for stdout output.
+	var output []byte
+	for _, v := range results {
+		if len(output) > 0 {
+			output = append(output, '\n')
+		}
+		output = append(output, v...)
+	}
+	return output, nil
+}
