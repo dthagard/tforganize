@@ -1,7 +1,6 @@
 package sort
 
 import (
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 )
 
@@ -48,13 +47,4 @@ type Params struct {
 func Sort(target string, settings *Params) error {
 	s := NewSorter(settings, afero.NewOsFs())
 	return s.run(target)
-}
-
-// Deprecated: SetFileSystem sets the package-level filesystem used by the
-// legacy Sort() wrapper. New callers should use NewSorter(params, fs) directly.
-// This function will be removed in a future release.
-func SetFileSystem(fs afero.Fs) {
-	log.WithField("fs", fs).Traceln("Starting SetFileSystem")
-	FS = fs
-	AFS = &afero.Afero{Fs: FS}
 }

@@ -13,39 +13,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-var (
-	// Deprecated: AFS is the package-level afero helper. New callers should use
-	// NewSorter(params, fs) and access the filesystem via the Sorter instead.
-	// This variable will be removed in a future release.
-	AFS *afero.Afero
-
-	// Deprecated: FS is the package-level afero filesystem. New callers should use
-	// NewSorter(params, fs) and access the filesystem via the Sorter instead.
-	// This variable will be removed in a future release.
-	FS afero.Fs
-
-	// Deprecated: linesCache is the package-level file-lines cache. New callers
-	// should use NewSorter(params, fs); per-run caching is now owned by Sorter.
-	// This variable will be removed in a future release.
-	linesCache = map[string][]string{}
-)
-
-// Deprecated: clearLinesCache resets the deprecated package-level file-lines cache.
-// Per-run caching is now owned by Sorter.linesCache.
-// This function will be removed in a future release.
-func clearLinesCache() {
-	linesCache = map[string][]string{}
-}
-
-// Deprecated: initFileSystem initialises the deprecated package-level FS and AFS variables.
-// New callers should use NewSorter(params, fs) instead.
-// This function will be removed in a future release.
-func initFileSystem() {
-	log.Traceln("Starting initFileSystem")
-	FS = afero.NewOsFs()
-	AFS = &afero.Afero{Fs: FS}
-}
-
 // getFilesFromTarget returns a list of files to sort.
 func (s *Sorter) getFilesFromTarget(target string) ([]string, error) {
 	log.WithField("target", target).Traceln("Starting getFilesFromTarget")

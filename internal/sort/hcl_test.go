@@ -6,23 +6,14 @@ import (
 	"strings"
 	"testing"
 
+	"os"
+
 	hcl "github.com/hashicorp/hcl/v2"
 	hclsyntax "github.com/hashicorp/hcl/v2/hclsyntax"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 )
 
-func init() {
-	// No-op
-}
-
-func hclCleanup() {
-	// No-op
-}
-
 func TestIsSortable(t *testing.T) {
-	t.Cleanup(hclCleanup)
-
 	/*********************************************************************/
 	// Happy path test for isSortable() with a sortable file
 	/*********************************************************************/
@@ -31,16 +22,16 @@ func TestIsSortable(t *testing.T) {
 		testDir := t.TempDir()
 
 		// Create a sortable file
-		sortable, err := AFS.Create(filepath.Join(testDir, "foo.tf"))
+		sortable, err := os.Create(filepath.Join(testDir, "foo.tf"))
 		if err != nil {
-			log.WithError(err).Errorln("could not create sortable file")
+			t.Fatalf("could not create sortable file: %v", err)
 		}
 		defer sortable.Close()
 
 		// Get sortable file info
 		sortableStat, err := sortable.Stat()
 		if err != nil {
-			log.WithError(err).Errorln("could not get sortable file")
+			t.Fatalf("could not stat sortable file: %v", err)
 		}
 
 		// Test sortable file
@@ -58,16 +49,16 @@ func TestIsSortable(t *testing.T) {
 		testDir := t.TempDir()
 
 		// Create a non-sortable file
-		unsortable, err := AFS.Create(filepath.Join(testDir, "main.txt"))
+		unsortable, err := os.Create(filepath.Join(testDir, "main.txt"))
 		if err != nil {
-			log.WithError(err).Errorln("could not create sortable file")
+			t.Fatalf("could not create non-sortable file: %v", err)
 		}
 		defer unsortable.Close()
 
 		// Get sortable file info
 		nonSortableStat, err := unsortable.Stat()
 		if err != nil {
-			log.WithError(err).Errorln("could not get sortable file")
+			t.Fatalf("could not stat non-sortable file: %v", err)
 		}
 
 		// Test sortable file
