@@ -171,15 +171,19 @@ func TestIsEndOfComment(t *testing.T) {
 func TestBlockListSorterLess(t *testing.T) {
 
 	/*********************************************************************/
-	// Different types: the lexicographically smaller type comes first.
+	// Different types: with sortByType enabled, blocks are ordered by
+	// logical priority (data=4 < resource=5).
 	/*********************************************************************/
 
-	t.Run("different types ordered alphabetically", func(t *testing.T) {
+	t.Run("different types ordered by priority", func(t *testing.T) {
 		bs := BlockListSorter{
-			&hclsyntax.Block{Type: "resource"},
-			&hclsyntax.Block{Type: "data"},
+			blocks: []*hclsyntax.Block{
+				{Type: "resource"},
+				{Type: "data"},
+			},
+			sortByType: true,
 		}
-		// data < resource, so Less(1,0) should be true
+		// data (4) < resource (5), so Less(1,0) should be true
 		if !bs.Less(1, 0) {
 			t.Error("data should come before resource")
 		}
@@ -189,13 +193,62 @@ func TestBlockListSorterLess(t *testing.T) {
 	})
 
 	/*********************************************************************/
+	// Different types with sortByType disabled: alphabetical ordering.
+	/*********************************************************************/
+
+	t.Run("different types ordered alphabetically when sortByType false", func(t *testing.T) {
+		bs := BlockListSorter{
+			blocks: []*hclsyntax.Block{
+				{Type: "resource"},
+				{Type: "data"},
+			},
+			sortByType: false,
+		}
+		// "data" < "resource" alphabetically
+		if !bs.Less(1, 0) {
+			t.Error("data should come before resource alphabetically")
+		}
+		if bs.Less(0, 1) {
+			t.Error("resource should not come before data alphabetically")
+		}
+	})
+
+	/*********************************************************************/
+	// Full priority chain: terraform < variable < locals < data <
+	// resource < module < import < moved < removed < check < output.
+	/*********************************************************************/
+
+	t.Run("full priority chain", func(t *testing.T) {
+		orderedTypes := []string{
+			"terraform", "variable", "locals", "data", "resource",
+			"module", "import", "moved", "removed", "check", "output",
+		}
+		var blocks []*hclsyntax.Block
+		for _, typ := range orderedTypes {
+			blocks = append(blocks, &hclsyntax.Block{Type: typ})
+		}
+		bs := BlockListSorter{blocks: blocks, sortByType: true}
+
+		for i := 0; i < len(orderedTypes)-1; i++ {
+			if !bs.Less(i, i+1) {
+				t.Errorf("%s (priority %d) should come before %s (priority %d)",
+					orderedTypes[i], getBlockTypePriority(orderedTypes[i]),
+					orderedTypes[i+1], getBlockTypePriority(orderedTypes[i+1]))
+			}
+		}
+	})
+
+	/*********************************************************************/
 	// Same type, no labels on either block: len(0) < len(0) is false.
 	/*********************************************************************/
 
 	t.Run("same type no labels returns false", func(t *testing.T) {
 		bs := BlockListSorter{
-			&hclsyntax.Block{Type: "terraform"},
-			&hclsyntax.Block{Type: "terraform"},
+			blocks: []*hclsyntax.Block{
+				{Type: "terraform"},
+				{Type: "terraform"},
+			},
+			sortByType: true,
 		}
 		if bs.Less(0, 1) {
 			t.Error("equal no-label blocks should not be Less")
@@ -208,8 +261,11 @@ func TestBlockListSorterLess(t *testing.T) {
 
 	t.Run("same type first label differs", func(t *testing.T) {
 		bs := BlockListSorter{
-			&hclsyntax.Block{Type: "resource", Labels: []string{"aws_s3_bucket", "beta"}},
-			&hclsyntax.Block{Type: "resource", Labels: []string{"aws_s3_bucket", "alpha"}},
+			blocks: []*hclsyntax.Block{
+				{Type: "resource", Labels: []string{"aws_s3_bucket", "beta"}},
+				{Type: "resource", Labels: []string{"aws_s3_bucket", "alpha"}},
+			},
+			sortByType: true,
 		}
 		// "alpha" < "beta", so block[1] should come before block[0]
 		if !bs.Less(1, 0) {
@@ -227,8 +283,11 @@ func TestBlockListSorterLess(t *testing.T) {
 
 	t.Run("same type fewer labels comes first", func(t *testing.T) {
 		bs := BlockListSorter{
-			&hclsyntax.Block{Type: "resource", Labels: []string{"aws_s3_bucket"}},
-			&hclsyntax.Block{Type: "resource", Labels: []string{"aws_s3_bucket", "extra"}},
+			blocks: []*hclsyntax.Block{
+				{Type: "resource", Labels: []string{"aws_s3_bucket"}},
+				{Type: "resource", Labels: []string{"aws_s3_bucket", "extra"}},
+			},
+			sortByType: true,
 		}
 		if !bs.Less(0, 1) {
 			t.Error("block with fewer labels should come first")
@@ -244,8 +303,11 @@ func TestBlockListSorterLess(t *testing.T) {
 
 	t.Run("same type identical labels returns false", func(t *testing.T) {
 		bs := BlockListSorter{
-			&hclsyntax.Block{Type: "resource", Labels: []string{"aws_s3_bucket", "my_bucket"}},
-			&hclsyntax.Block{Type: "resource", Labels: []string{"aws_s3_bucket", "my_bucket"}},
+			blocks: []*hclsyntax.Block{
+				{Type: "resource", Labels: []string{"aws_s3_bucket", "my_bucket"}},
+				{Type: "resource", Labels: []string{"aws_s3_bucket", "my_bucket"}},
+			},
+			sortByType: true,
 		}
 		if bs.Less(0, 1) || bs.Less(1, 0) {
 			t.Error("identical blocks should not be Less in either direction")

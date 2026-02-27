@@ -5,7 +5,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const defaultFileGroup = "main.tf"
+const (
+	defaultFileGroup         = "main.tf"
+	defaultBlockTypePriority = 6 // between module and import
+)
 
 // metaArguments is a map of block types to meta arguments.
 // The "pre" arguments are the ones that should be first inside of a block.
@@ -18,6 +21,23 @@ const defaultFileGroup = "main.tf"
 //   - https://developer.hashicorp.com/terraform/language/modules/develop/refactoring
 //   - https://developer.hashicorp.com/terraform/language/import
 var (
+	// blockTypePriority defines the logical ordering of top-level block types
+	// when sorting within a single file. Lower values sort first. Types not
+	// in this map receive defaultBlockTypePriority (between module and import).
+	blockTypePriority = map[string]int{
+		"terraform": 1,
+		"variable":  2,
+		"locals":    3,
+		"data":      4,
+		"resource":  5,
+		"module":    6,
+		"import":    7,
+		"moved":     8,
+		"removed":   9,
+		"check":     10,
+		"output":    11,
+	}
+
 	// fileGroups maps block types to the canonical output file name used when
 	// --group-by-type is enabled. Block types not listed here fall back to
 	// defaultFileGroup ("main.tf").
@@ -107,6 +127,16 @@ var (
 		},
 	}
 )
+
+// getBlockTypePriority returns the sort priority for a given block type.
+// Known types return their defined priority; unknown types return
+// defaultBlockTypePriority.
+func getBlockTypePriority(blockType string) int {
+	if p, ok := blockTypePriority[blockType]; ok {
+		return p
+	}
+	return defaultBlockTypePriority
+}
 
 // getMetaArguments returns the meta arguments that should be first and last inside of a block
 func getMetaArguments(block *hclsyntax.Block) [][]string {

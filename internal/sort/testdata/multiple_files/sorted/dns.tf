@@ -6,21 +6,6 @@ data "google_compute_network" "vpc_dns_hub" {
   project = var.dns_hub_project_id
 }
 
-module "peering_zone" {
-  source  = "terraform-google-modules/cloud-dns/google"
-  version = "~> 5.0"
-
-  description = "Private DNS peering zone."
-  domain      = var.domain
-  name        = "dz-${var.environment_code}-shared-base-to-dns-hub"
-  private_visibility_config_networks = [
-    module.main.network_self_link
-  ]
-  project_id     = var.project_id
-  target_network = data.google_compute_network.vpc_dns_hub.self_link
-  type           = "peering"
-}
-
 /******************************************
   Default DNS Policy
  *****************************************/
@@ -35,4 +20,19 @@ resource "google_dns_policy" "default_policy" {
   }
 
   project = var.project_id
+}
+
+module "peering_zone" {
+  source  = "terraform-google-modules/cloud-dns/google"
+  version = "~> 5.0"
+
+  description = "Private DNS peering zone."
+  domain      = var.domain
+  name        = "dz-${var.environment_code}-shared-base-to-dns-hub"
+  private_visibility_config_networks = [
+    module.main.network_self_link
+  ]
+  project_id     = var.project_id
+  target_network = data.google_compute_network.vpc_dns_hub.self_link
+  type           = "peering"
 }

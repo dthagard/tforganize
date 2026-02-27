@@ -14,6 +14,13 @@
  * limitations under the License.
  */
 
+locals {
+  mode                    = var.mode == "hub" ? "-hub" : "-spoke"
+  network_name            = "vpc-${local.vpc_name}"
+  private_googleapis_cidr = module.private_service_connect.private_service_connect_ip
+  vpc_name                = "${var.environment_code}-shared-base${local.mode}"
+}
+
 /***************************************************************
   VPC Peering Configuration
  **************************************************************/
@@ -24,11 +31,32 @@ data "google_compute_network" "vpc_base_net_hub" {
   project = var.base_net_hub_project_id
 }
 
-locals {
-  mode                    = var.mode == "hub" ? "-hub" : "-spoke"
-  network_name            = "vpc-${local.vpc_name}"
-  private_googleapis_cidr = module.private_service_connect.private_service_connect_ip
-  vpc_name                = "${var.environment_code}-shared-base${local.mode}"
+/***************************************************************
+  Configure Service Networking for Cloud SQL & future services.
+ **************************************************************/
+
+resource "google_compute_global_address" "private_service_access_address" {
+  count = var.private_service_cidr != null ? 1 : 0
+
+  address       = element(split("/", var.private_service_cidr), 0)
+  address_type  = "INTERNAL"
+  name          = "ga-${local.vpc_name}-vpc-peering-internal"
+  network       = module.main.network_self_link
+  prefix_length = element(split("/", var.private_service_cidr), 1)
+  project       = var.project_id
+  purpose       = "VPC_PEERING"
+
+  depends_on = [module.peering]
+}
+
+resource "google_service_networking_connection" "private_vpc_connection" {
+  count = var.private_service_cidr != null ? 1 : 0
+
+  network                 = module.main.network_self_link
+  reserved_peering_ranges = [google_compute_global_address.private_service_access_address[0].name]
+  service                 = "servicenetworking.googleapis.com"
+
+  depends_on = [module.peering]
 }
 
 /******************************************
@@ -149,32 +177,4 @@ module "region2_router2" {
   network = module.main.network_name
   project = var.project_id
   region  = var.default_region2
-}
-
-/***************************************************************
-  Configure Service Networking for Cloud SQL & future services.
- **************************************************************/
-
-resource "google_compute_global_address" "private_service_access_address" {
-  count = var.private_service_cidr != null ? 1 : 0
-
-  address       = element(split("/", var.private_service_cidr), 0)
-  address_type  = "INTERNAL"
-  name          = "ga-${local.vpc_name}-vpc-peering-internal"
-  network       = module.main.network_self_link
-  prefix_length = element(split("/", var.private_service_cidr), 1)
-  project       = var.project_id
-  purpose       = "VPC_PEERING"
-
-  depends_on = [module.peering]
-}
-
-resource "google_service_networking_connection" "private_vpc_connection" {
-  count = var.private_service_cidr != null ? 1 : 0
-
-  network                 = module.main.network_self_link
-  reserved_peering_ranges = [google_compute_global_address.private_service_access_address[0].name]
-  service                 = "servicenetworking.googleapis.com"
-
-  depends_on = [module.peering]
 }

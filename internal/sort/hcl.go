@@ -59,21 +59,29 @@ func (s *Sorter) parseHclBytes(content []byte, filename string) (*hclsyntax.Body
 	return body, nil
 }
 
-// BlockListSorter implements the sort.Interface for []*hclsyntax.Block
-type BlockListSorter []*hclsyntax.Block
+// BlockListSorter implements the sort.Interface for []*hclsyntax.Block.
+// When sortByType is true, blocks are ordered by logical type priority
+// (see blockTypePriority); otherwise they are ordered alphabetically by type.
+type BlockListSorter struct {
+	blocks     []*hclsyntax.Block
+	sortByType bool
+}
 
 // Len returns the length of the array.
 func (bs BlockListSorter) Len() int {
-	return len(bs)
+	return len(bs.blocks)
 }
 
 // Less compares two blocks based on their types and labels.
 func (bs BlockListSorter) Less(i, j int) bool {
-	block1 := bs[i]
-	block2 := bs[j]
+	block1 := bs.blocks[i]
+	block2 := bs.blocks[j]
 
 	// First, compare the Type fields
 	if block1.Type != block2.Type {
+		if bs.sortByType {
+			return getBlockTypePriority(block1.Type) < getBlockTypePriority(block2.Type)
+		}
 		return block1.Type < block2.Type
 	}
 
@@ -96,7 +104,7 @@ func (bs BlockListSorter) Less(i, j int) bool {
 
 // Swap swaps two blocks in the array.
 func (bs BlockListSorter) Swap(i, j int) {
-	bs[i], bs[j] = bs[j], bs[i]
+	bs.blocks[i], bs.blocks[j] = bs.blocks[j], bs.blocks[i]
 }
 
 // isSortable returns true if the file is sortable.
