@@ -192,6 +192,7 @@ func (s *Sorter) getLinesFromFile(filename string) ([]string, error) {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 0, bufio.MaxScanTokenSize), 1<<20) // 1 MB max line length
 
 	lines := make([]string, 0)
 	for scanner.Scan() {
