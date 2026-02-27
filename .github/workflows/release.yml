@@ -23,8 +23,8 @@ jobs:
           - goarch: arm64
             goos: windows
     steps:
-      - uses: actions/checkout@v4
-      - uses: wangyoucao577/go-release-action@v1
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: wangyoucao577/go-release-action@279495102627de7960cbc33434ab01a12bae144b # v1
         with:
           binary_name: "tforganize"
           extra_files: LICENSE README.md
@@ -36,12 +36,12 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - id: pre-step
         shell: bash
         run: echo "release-version=$(echo ${GITHUB_REF:10})" >> $GITHUB_OUTPUT
       - name: Publish to Registry
-        uses: elgohr/Publish-Docker-Github-Action@v5
+        uses: elgohr/Publish-Docker-Github-Action@4feac4d53e4e55dcc5d3e2ad0ed2e0a76028ff7a # v5
         with:
           name: dthagard/tforganize/tforganize
           password: ${{ secrets.GITHUB_TOKEN }}
