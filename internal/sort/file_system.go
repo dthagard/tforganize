@@ -244,13 +244,20 @@ func (s *Sorter) writeFiles(fileBytes map[string][]byte) error {
 	return nil
 }
 
-// writeFile writes a byte array to a file.
+// writeFile writes a byte array to a file, preserving the original file's
+// permissions when it exists. Falls back to 0644 for new files.
 func (s *Sorter) writeFile(filename string, fileBytes []byte) error {
 	log.WithFields(log.Fields{"filename": filename, "fileBytes": fileBytes}).Traceln("Starting writeFile")
 
+	// Preserve original file permissions when overwriting.
+	perm := fs.FileMode(0644)
+	if info, err := s.fs.Stat(filename); err == nil {
+		perm = info.Mode().Perm()
+	}
+
 	// create file
 	log.WithField("filename", filename).Debugln("Creating file...")
-	f, err := s.afs.Create(filename)
+	f, err := s.fs.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 	if err != nil {
 		return fmt.Errorf("could not create the file: %w", err)
 	}
