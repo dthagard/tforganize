@@ -20,7 +20,6 @@ func TestSortNilSettings(t *testing.T) {
 			t.Fatalf("Sort panicked with nil settings: %v", r)
 		}
 	}()
-	initParams()
 	err := Sort("nonexistent-path-that-does-not-exist", nil)
 	if err == nil {
 		t.Fatal("expected an error for nonexistent target, got nil")
@@ -52,40 +51,35 @@ func TestSortInlineDoesNotMutateSettings(t *testing.T) {
 // continues) for each known fatal condition.
 func TestSortErrorPaths(t *testing.T) {
 	t.Run("nonexistent target", func(t *testing.T) {
-		initParams()
-		err := Sort("nonexistent-path-xyz-does-not-exist", nil)
+			err := Sort("nonexistent-path-xyz-does-not-exist", nil)
 		if err == nil {
 			t.Fatal("expected error for nonexistent target, got nil")
 		}
 	})
 
 	t.Run("inline conflicts with group-by-type", func(t *testing.T) {
-		initParams()
-		err := Sort(".", &Params{Inline: true, GroupByType: true})
+			err := Sort(".", &Params{Inline: true, GroupByType: true})
 		if err == nil {
 			t.Fatal("expected error when inline conflicts with group-by-type, got nil")
 		}
 	})
 
 	t.Run("inline conflicts with output-dir", func(t *testing.T) {
-		initParams()
-		err := Sort(".", &Params{Inline: true, OutputDir: "/some/dir"})
+			err := Sort(".", &Params{Inline: true, OutputDir: "/some/dir"})
 		if err == nil {
 			t.Fatal("expected error when inline conflicts with output-dir, got nil")
 		}
 	})
 
 	t.Run("keep-header without has-header", func(t *testing.T) {
-		initParams()
-		err := Sort(".", &Params{KeepHeader: true, HasHeader: false, HeaderPattern: "# header"})
+			err := Sort(".", &Params{KeepHeader: true, HasHeader: false, HeaderPattern: "# header"})
 		if err == nil {
 			t.Fatal("expected error when keep-header is set but has-header is false, got nil")
 		}
 	})
 
 	t.Run("keep-header with empty header-pattern", func(t *testing.T) {
-		initParams()
-		err := Sort(".", &Params{KeepHeader: true, HasHeader: true, HeaderPattern: ""})
+			err := Sort(".", &Params{KeepHeader: true, HasHeader: true, HeaderPattern: ""})
 		if err == nil {
 			t.Fatal("expected error when keep-header is set but header-pattern is empty, got nil")
 		}
@@ -127,17 +121,10 @@ const (
 	unsortedDir = "unsorted"
 )
 
-func init() {
-	SetFileSystem(afero.NewOsFs())
-}
-
-func sortCleanup() {
-	// No-op
-}
+// testAFS is the afero helper used by golden-file tests.
+var testAFS = &afero.Afero{Fs: afero.NewOsFs()}
 
 func TestSortFile(t *testing.T) {
-	t.Cleanup(sortCleanup)
-
 	/*********************************************************************/
 	// Happy path test for sortFile() with a single file
 	/*********************************************************************/
@@ -201,7 +188,7 @@ func testSortFile(path string, t *testing.T) {
 	p.OutputDir = filepath.Join("./scratch", path)
 
 	// Get the files in the unsorted directory
-	unsortedFiles, err := AFS.ReadDir(filepath.Join(path, unsortedDir))
+	unsortedFiles, err := testAFS.ReadDir(filepath.Join(path, unsortedDir))
 	if err != nil {
 		t.Fatalf("could not read unsorted directory: %v", err)
 	}
@@ -212,7 +199,7 @@ func testSortFile(path string, t *testing.T) {
 
 		// Read the sorted file
 		sortedFilePath := filepath.Join(path, sortedDir, fileName)
-		sortedBytes, err := AFS.ReadFile(sortedFilePath)
+		sortedBytes, err := testAFS.ReadFile(sortedFilePath)
 		if err != nil {
 			t.Fatalf("could not read expected sorted file %s: %v", sortedFilePath, err)
 		}
@@ -313,8 +300,8 @@ func mapKeys(m map[string][]byte) []string {
 // setParams is a helper function for testSortFile
 func setParams(path string, p *Params) error {
 	configFile := filepath.Join(path, ".tforganize.yaml")
-	if ok, _ := AFS.Exists(configFile); ok {
-		config, err := AFS.ReadFile(configFile)
+	if ok, _ := testAFS.Exists(configFile); ok {
+		config, err := testAFS.ReadFile(configFile)
 		if err != nil {
 			return fmt.Errorf("could not read config file: %s", configFile)
 		}
@@ -328,7 +315,6 @@ func setParams(path string, p *Params) error {
 // TestRunInvalidExcludePattern verifies that Sort returns a non-nil error
 // containing "invalid exclude pattern" when an invalid glob is supplied.
 func TestRunInvalidExcludePattern(t *testing.T) {
-	initParams()
 	dir := t.TempDir()
 	err := Sort(dir, &Params{Excludes: []string{"[invalid"}})
 	if err == nil {
@@ -491,8 +477,7 @@ func TestSort(t *testing.T) {
 	/*********************************************************************/
 
 	t.Run("conflicting flags returns early", func(t *testing.T) {
-		initParams()
-		dir := t.TempDir()
+			dir := t.TempDir()
 		Sort(dir, &Params{Inline: true, GroupByType: true})
 	})
 
@@ -502,8 +487,7 @@ func TestSort(t *testing.T) {
 	/*********************************************************************/
 
 	t.Run("output dir writes sorted file", func(t *testing.T) {
-		initParams()
-		dir := t.TempDir()
+			dir := t.TempDir()
 		outDir := t.TempDir()
 
 		content := `resource "aws_instance" "b_server" {
@@ -545,8 +529,7 @@ resource "aws_instance" "a_server" {
 	/*********************************************************************/
 
 	t.Run("inline sorts file in place", func(t *testing.T) {
-		initParams()
-		dir := t.TempDir()
+			dir := t.TempDir()
 
 		content := `resource "aws_instance" "b_server" {
   instance_type = "t2.micro"
@@ -587,14 +570,8 @@ resource "aws_instance" "a_server" {
 	/*********************************************************************/
 
 	t.Run("group by type splits blocks into type files", func(t *testing.T) {
-		initParams()
-		dir := t.TempDir()
+			dir := t.TempDir()
 		outDir := t.TempDir()
-
-		// Ensure the tforganize temp dir exists (used by combineFiles).
-		if err := os.MkdirAll(filepath.Join(os.TempDir(), "tforganize"), 0755); err != nil {
-			t.Fatalf("could not create tforganize temp dir: %v", err)
-		}
 
 		content := `resource "aws_s3_bucket" "my_bucket" {
   bucket = "my-bucket"
@@ -646,8 +623,7 @@ output "bucket_name" {
 	/*********************************************************************/
 
 	t.Run("remove comments strips comments from output", func(t *testing.T) {
-		initParams()
-		dir := t.TempDir()
+			dir := t.TempDir()
 		outDir := t.TempDir()
 
 		content := `# This comment should be removed
