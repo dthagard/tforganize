@@ -40,7 +40,6 @@ clean:
 .PHONY: configure
 configure:
 	$(GOCMD) mod tidy
-	$(GOCMD) mod vendor
 	$(GOINSTALL) github.com/githubnemo/CompileDaemon@latest
 	$(GOGET) github.com/dthagard/tforganize
 
