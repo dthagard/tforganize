@@ -63,6 +63,15 @@ func TestGetMetaArguments(t *testing.T) {
 			wantPost:  []string{},
 		},
 		/*********************************************************************/
+		// output block: description and value first, sensitive/precondition/depends_on last.
+		/*********************************************************************/
+		{
+			name:      "output block",
+			blockType: "output",
+			wantPre:   []string{"description", "value"},
+			wantPost:  []string{"sensitive", "precondition", "depends_on"},
+		},
+		/*********************************************************************/
 		// moved block: requires from and to (in that order), no post args.
 		/*********************************************************************/
 		{
