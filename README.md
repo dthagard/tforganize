@@ -36,7 +36,7 @@
 - **Stdin support** – pipe HCL content via stdin (`cat main.tf | tforganize sort -`) for easy integration with other tools.
 - **Inline or out-of-place** – update files in place (`--inline`) or emit to an output directory for review/CI.
 - **Configurable** – every flag has a YAML counterpart so you can save defaults in `.tforganize.yaml` or supply `--config`.
-- **CI friendly** – published as a Go binary and as `ghcr.io/dthagard/tforganize/tforganize:latest` for Docker/GitLab/GitHub runners.
+- **CI friendly** – published as a Go binary and as `ghcr.io/dthagard/tforganize:latest` for Docker/GitLab/GitHub runners.
 
 ## Installation
 
@@ -58,7 +58,7 @@ go install github.com/dthagard/tforganize@latest
 ### Docker
 
 ```bash
-docker run --rm -v "$(pwd)":/tforganize -w /tforganize ghcr.io/dthagard/tforganize/tforganize:latest sort -i .
+docker run --rm -v "$(pwd)":/tforganize -w /tforganize ghcr.io/dthagard/tforganize:latest sort -i .
 ```
 
 ## Quick start
@@ -254,7 +254,7 @@ repos:
       - id: tforganize-docker
 ```
 
-This pulls `ghcr.io/dthagard/tforganize/tforganize:latest` and runs the sort inside the container. Ideal for teams where not everyone has Go installed.
+This pulls `ghcr.io/dthagard/tforganize:latest` and runs the sort inside the container. Ideal for teams where not everyone has Go installed.
 
 ### GitHub Actions
 
@@ -267,7 +267,7 @@ on:
 jobs:
   tforganize:
     runs-on: ubuntu-latest
-    container: ghcr.io/dthagard/tforganize/tforganize:latest
+    container: ghcr.io/dthagard/tforganize:latest
     steps:
       - uses: actions/checkout@v4
       - run: tforganize sort --diff --check "$TF_ROOT"
@@ -283,7 +283,7 @@ stages: [lint]
 terraform:lint:
   stage: lint
   image:
-    name: ghcr.io/dthagard/tforganize/tforganize:latest
+    name: ghcr.io/dthagard/tforganize:latest
     entrypoint: [""]
   script:
     - tforganize sort --diff --check "$TF_ROOT"
@@ -301,7 +301,7 @@ version: 2.1
 executors:
   tforganize:
     docker:
-      - image: ghcr.io/dthagard/tforganize/tforganize:latest
+      - image: ghcr.io/dthagard/tforganize:latest
 
 jobs:
   lint:
@@ -327,7 +327,7 @@ trigger:
 pool:
   vmImage: ubuntu-latest
 
-container: ghcr.io/dthagard/tforganize/tforganize:latest
+container: ghcr.io/dthagard/tforganize:latest
 
 steps:
   - checkout: self
@@ -347,7 +347,7 @@ tforganize-all:
 ### Docker one-liner
 
 ```bash
-docker run --rm -v "$(pwd)":/tforganize -w /tforganize   ghcr.io/dthagard/tforganize/tforganize:latest sort -i .
+docker run --rm -v "$(pwd)":/tforganize -w /tforganize   ghcr.io/dthagard/tforganize:latest sort -i .
 ```
 
 

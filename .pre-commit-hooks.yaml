@@ -11,7 +11,7 @@
   name: tforganize (docker)
   description: Sort and organize Terraform files using the tforganize Docker image (no Go installation required).
   language: docker_image
-  entry: ghcr.io/dthagard/tforganize/tforganize:latest sort --inline
+  entry: ghcr.io/dthagard/tforganize:latest sort --inline
   types_or: [terraform]
   pass_filenames: true
   require_serial: true
