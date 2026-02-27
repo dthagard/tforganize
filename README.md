@@ -28,7 +28,7 @@ brew install tforganize
 
 ### Go
 
-> Requires Go **1.20+**
+> Requires Go **1.23+**
 
 ```bash
 go install github.com/dthagard/tforganize@latest
@@ -72,6 +72,12 @@ Preview changes without writing anything:
 tforganize sort --diff .
 ```
 
+Check for drift in CI (exits non-zero and shows what changed):
+
+```bash
+tforganize sort --diff --check .
+```
+
 Keep a copyright header while stripping other comments:
 
 ```bash
@@ -83,7 +89,7 @@ tforganize sort \
   --remove-comments
 ```
 
-## CLI reference (trimmed)
+## CLI reference
 
 ```text
 Usage: tforganize sort [file | folder | -] [flags]
@@ -102,6 +108,26 @@ Flags:
   -o, --output-dir string       directory for sorted files (required unless --inline)
   -R, --recursive               sort all nested directories (each directory independently)
   -r, --remove-comments         drop all comments except headers kept via --keep-header
+```
+
+`--diff` and `--check` can be combined: `--diff --check` prints the unified diff **and** exits non-zero if any file would change.
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0`  | Success (or no changes in `--check` mode) |
+| `1`  | Runtime error (invalid flags, parse failure, I/O error, etc.) |
+| `2`  | `--check` detected files that would change |
+
+### Environment variables
+
+All flags can also be set via environment variables prefixed with `TFORGANIZE_`. Dashes become underscores:
+
+```bash
+TFORGANIZE_INLINE=true tforganize sort .
+TFORGANIZE_GROUP_BY_TYPE=true tforganize sort --output-dir ./sorted .
+TFORGANIZE_EXCLUDE='.terraform/**' tforganize sort .
 ```
 
 ## Exclude files
@@ -220,12 +246,7 @@ jobs:
     container: ghcr.io/dthagard/tforganize/tforganize:latest
     steps:
       - uses: actions/checkout@v4
-      - run: |
-          tforganize sort --inline "$TF_ROOT"
-          git diff --quiet || {
-            echo "tforganize found drift";
-            exit 1;
-          }
+      - run: tforganize sort --diff --check "$TF_ROOT"
     env:
       TF_ROOT: infrastructure
 ```
@@ -241,10 +262,7 @@ terraform:lint:
     name: ghcr.io/dthagard/tforganize/tforganize:latest
     entrypoint: [""]
   script:
-    - tforganize sort --inline "$TF_ROOT"  # reorganize files
-    - git diff --quiet || {
-        echo "tforganize found drift"; exit 1;
-      }
+    - tforganize sort --diff --check "$TF_ROOT"
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   variables:
@@ -266,8 +284,7 @@ jobs:
     executor: tforganize
     steps:
       - checkout
-      - run: tforganize sort --inline "$TF_ROOT"
-      - run: git diff --quiet || { echo "tforganize found drift"; exit 1; }
+      - run: tforganize sort --diff --check "$TF_ROOT"
 
 workflows:
   version: 2
@@ -290,9 +307,7 @@ container: ghcr.io/dthagard/tforganize/tforganize:latest
 
 steps:
   - checkout: self
-  - script: |
-      tforganize sort --inline $(TF_ROOT)
-      git diff --quiet || exit 1
+  - script: tforganize sort --diff --check $(TF_ROOT)
     displayName: Run tforganize
 ```
 
