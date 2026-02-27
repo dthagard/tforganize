@@ -20,17 +20,21 @@ const (
 func (s *Sorter) sortFiles(files []string) (map[string][]byte, error) {
 	log.WithField("files", files).Traceln("Starting sortFiles")
 
+	// If we are grouping by type, we need to create a combined file
+	// that contains all of the blocks from all of the files.
+	filesToSort := files
 	if s.params.GroupByType {
 		log.Debugln("Creating combined file...")
-		combinedBytes, err := s.combineFiles(files)
+		combinedFile, err := s.combineFiles(files)
 		if err != nil {
 			return nil, fmt.Errorf("could not combine files: %w", err)
 		}
-		return s.sortFileBytes(combinedBytes, "combined.tf")
+		// Reset filesToSort to only contain combinedFile.
+		filesToSort = []string{combinedFile}
 	}
 
 	output := map[string][]byte{}
-	for _, f := range files {
+	for _, f := range filesToSort {
 		sortedFileBytes, err := s.sortFile(f)
 		if err != nil {
 			return nil, fmt.Errorf("could not sort file: %w", err)
@@ -53,25 +57,6 @@ func (s *Sorter) sortFile(path string) (map[string][]byte, error) {
 		return nil, fmt.Errorf("could not get body from file: %w", err)
 	}
 
-	return s.sortBody(body)
-}
-
-// sortFileBytes sorts in-memory HCL content into one or more output files.
-func (s *Sorter) sortFileBytes(content []byte, filename string) (map[string][]byte, error) {
-	log.WithField("filename", filename).Traceln("Starting sortFileBytes")
-
-	s.cacheLinesFromBytes(content, filename)
-
-	body, err := s.parseHclBytes(content, filename)
-	if err != nil {
-		return nil, fmt.Errorf("could not get body from bytes: %w", err)
-	}
-
-	return s.sortBody(body)
-}
-
-// sortBody sorts an HCL body's blocks and returns the formatted output.
-func (s *Sorter) sortBody(body *hclsyntax.Body) (map[string][]byte, error) {
 	log.Debugln("Sorting blocks...")
 	sortedFileBytes, err := s.sortBlocks(body.Blocks)
 	if err != nil {
@@ -79,20 +64,16 @@ func (s *Sorter) sortBody(body *hclsyntax.Body) (map[string][]byte, error) {
 	}
 
 	output := map[string][]byte{}
+	log.Debugln("Formatting blocks...")
+	var buffer []byte
 	for k, v := range sortedFileBytes {
-		buffer := v
+		buffer = v
+		// If we are keeping the header, add it back
 		if s.params.KeepHeader {
 			log.Debugln("Adding header...")
 			buffer = s.addHeader(buffer)
 		}
-		formatted := hclwrite.Format(buffer)
-
-		// Validate the formatted output is still valid HCL.
-		if _, diag := hclParseFn(formatted, k); diag.HasErrors() {
-			return nil, fmt.Errorf("sorted output for %s is not valid HCL: %s", k, diag.Error())
-		}
-
-		output[k] = formatted
+		output[k] = hclwrite.Format(buffer)
 	}
 
 	return output, nil

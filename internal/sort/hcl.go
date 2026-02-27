@@ -45,20 +45,6 @@ func (s *Sorter) parseHclFile(path string) (*hclsyntax.Body, error) {
 	return body, nil
 }
 
-// parseHclBytes parses raw HCL content and returns the body.
-func (s *Sorter) parseHclBytes(content []byte, filename string) (*hclsyntax.Body, error) {
-	log.WithField("filename", filename).Traceln("Starting parseHclBytes")
-
-	// Parse the HCL content
-	file, diag := hclParseFn(content, filename)
-	if diag.HasErrors() {
-		return nil, fmt.Errorf("failed to parse HCL: %s", diag.Error())
-	}
-
-	body := file.Body.(*hclsyntax.Body)
-	return body, nil
-}
-
 // BlockListSorter implements the sort.Interface for []*hclsyntax.Block
 type BlockListSorter []*hclsyntax.Block
 
