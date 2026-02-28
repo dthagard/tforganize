@@ -51,6 +51,9 @@ type Params struct {
 	// If the remove-comments flag is set, the comments will be removed from the files.
 	// Otherwise, the comments will be preserved.
 	RemoveComments bool `yaml:"remove-comments"`
+	// If CompactEmptyBlocks is set, blocks with no body content are collapsed
+	// to a single line (e.g. `data "aws_region" "current" {}`).
+	CompactEmptyBlocks bool `yaml:"compact-empty-blocks"`
 }
 
 // Sort sorts a Terraform file or folder.

@@ -3,6 +3,7 @@ package sort
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -122,6 +123,11 @@ func (s *Sorter) sortBody(body *hclsyntax.Body, inputFilename string) (map[strin
 			buffer = s.addHeader(buffer, inputFilename)
 		}
 		formatted := hclwrite.Format(buffer)
+
+		if s.params.CompactEmptyBlocks {
+			re := regexp.MustCompile(`(?m)(\S) \{\s*\n\}\n`)
+			formatted = re.ReplaceAll(formatted, []byte("$1 {}\n"))
+		}
 
 		// Validate the formatted output is still valid HCL.
 		if _, diag := hclParseFn(formatted, k); diag.HasErrors() {

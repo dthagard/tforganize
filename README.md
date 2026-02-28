@@ -93,6 +93,12 @@ Preview changes without writing anything:
 tforganize sort --diff .
 ```
 
+Collapse empty blocks (e.g. `data "aws_region" "current" {}`) to one line:
+
+```bash
+tforganize sort --compact-empty-blocks --inline .
+```
+
 Check for drift in CI (exits non-zero and shows what changed):
 
 ```bash
@@ -140,6 +146,7 @@ Usage: tforganize sort [file | folder | -] [flags]
 
 Flags:
   -c, --check                   exit non-zero if any file would change (dry-run mode)
+      --compact-empty-blocks    collapse empty blocks to a single line (e.g. data "aws_region" "current" {})
       --config string           YAML config path (default $HOME/.tforganize.yaml)
   -d, --debug                   enable verbose logging
       --diff                    show a unified diff of changes instead of writing files
@@ -237,6 +244,7 @@ Key fields:
 | Key              | Description                                  |
 |------------------|----------------------------------------------|
 | `check`          | Same as `--check`                            |
+| `compact-empty-blocks` | Same as `--compact-empty-blocks`       |
 | `diff`           | Same as `--diff`                             |
 | `exclude`        | List of glob patterns to exclude             |
 | `group-by-type`  | Same as `--group-by-type`                    |
