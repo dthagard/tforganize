@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	hcl "github.com/hashicorp/hcl/v2"
@@ -168,6 +169,11 @@ func (s *Sorter) getNodeComment(lines []string, startLine int, filename string) 
 
 		// Remove the trailing empty lines
 		comment = removeTrailingEmptyLines(comment)
+
+		// Strip section-divider comments if requested
+		if s.params.StripSectionComments {
+			comment = stripSectionDividers(comment)
+		}
 	}
 
 	return comment
@@ -424,6 +430,69 @@ func removeTrailingEmptyLines(lines []string) []string {
 		} else {
 			break
 		}
+	}
+
+	return result
+}
+
+// sectionDividerRe matches content (after comment prefix removal) that is
+// composed entirely of separator chars, or is a titled divider where separator
+// chars bookend the content (e.g. "=== REST API ===").
+var sectionDividerRe = regexp.MustCompile(`^[-=*_~/+\s]+$|^[-=*_~/+]{3,}.*[-=*_~/+]{3,}$`)
+
+// isSectionDivider returns true if the line is a section-divider comment.
+func isSectionDivider(line string) bool {
+	trimmed := strings.TrimSpace(line)
+
+	var content string
+	if strings.HasPrefix(trimmed, "//") {
+		content = strings.TrimSpace(trimmed[2:])
+	} else if strings.HasPrefix(trimmed, "#") {
+		content = strings.TrimSpace(trimmed[1:])
+	} else {
+		return false
+	}
+
+	if content == "" {
+		return true
+	}
+
+	return sectionDividerRe.MatchString(content)
+}
+
+// stripSectionDividers removes section-divider lines from a comment slice.
+func stripSectionDividers(lines []string) []string {
+	if len(lines) == 0 {
+		return lines
+	}
+
+	isDivider := make([]bool, len(lines))
+	for i, line := range lines {
+		isDivider[i] = isSectionDivider(line)
+	}
+
+	remove := make([]bool, len(lines))
+	for i := range lines {
+		if isDivider[i] {
+			remove[i] = true
+		}
+	}
+	for i := 1; i < len(lines)-1; i++ {
+		if !remove[i] && isDivider[i-1] && isDivider[i+1] {
+			remove[i] = true
+		}
+	}
+
+	var result []string
+	for i, line := range lines {
+		if !remove[i] {
+			result = append(result, line)
+		}
+	}
+
+	result = removeLeadingEmptyLines(result)
+	for len(result) > 0 && isEmptyLine(result[len(result)-1]) {
+		result = result[:len(result)-1]
 	}
 
 	return result
