@@ -901,6 +901,39 @@ resource "aws_s3_bucket" "alpha" {
 	})
 }
 
+// TestSortBytesPreservesBlankLineSeparator verifies that when has-header
+// strips the header, the blank line separator between the header and the
+// first block's comment is preserved in the sorted output.
+func TestSortBytesPreservesBlankLineSeparator(t *testing.T) {
+	input := []byte(`/**
+ * Copyright (c) 2025 Example Corp
+ **/
+
+# This comment belongs to the resource
+resource "aws_s3_bucket" "only" {
+  bucket = "my-bucket"
+}
+`)
+	result, err := SortBytes(input, "main.tf", &Params{
+		HasHeader:     true,
+		HeaderPattern: "Copyright",
+	})
+	if err != nil {
+		t.Fatalf("SortBytes returned unexpected error: %v", err)
+	}
+
+	out := string(result)
+	if strings.Contains(out, "Copyright") {
+		t.Errorf("header should be stripped:\n%s", out)
+	}
+	if !strings.Contains(out, "# This comment belongs to the resource") {
+		t.Errorf("block comment should be preserved:\n%s", out)
+	}
+	if !strings.HasPrefix(out, "\n") {
+		t.Errorf("expected output to start with a blank line separator:\n%q", out)
+	}
+}
+
 // TestRecursive verifies that --recursive mode processes nested directories.
 func TestRecursive(t *testing.T) {
 	t.Run("inline recursive sorts all nested directories", func(t *testing.T) {

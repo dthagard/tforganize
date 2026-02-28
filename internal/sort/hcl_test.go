@@ -706,7 +706,7 @@ func TestRemoveHeaderWithDetectedHeader(t *testing.T) {
 		}
 
 		result := s.removeHeader(comment, "test.tf")
-		expected := []string{"# Block comment"}
+		expected := []string{"", "# Block comment"}
 		if !reflect.DeepEqual(result, expected) {
 			t.Errorf("removeHeader() = %v, want %v", result, expected)
 		}
@@ -830,6 +830,75 @@ func TestRemoveLeadingEmptyLines(t *testing.T) {
 		result := removeLeadingEmptyLines(testData)
 		if !reflect.DeepEqual(result, expected) {
 			t.Errorf("removeLeadingEmptyLines returned %v, expected %v\n", result, expected)
+		}
+	})
+}
+
+func TestRemoveHeaderPreservesBlankLineSeparator(t *testing.T) {
+	t.Run("detected header preserves blank line before remaining comments", func(t *testing.T) {
+		s := NewSorter(&Params{
+			HasHeader:     true,
+			HeaderPattern: "Copyright",
+		}, afero.NewMemMapFs())
+		s.detectedHeaders["test.tf"] = "/**\n * Copyright (c) 2025\n **/"
+		comment := []string{"/**", " * Copyright (c) 2025", " **/", "", "# Block comment"}
+		result := s.removeHeader(comment, "test.tf")
+		expected := []string{"", "# Block comment"}
+		if !reflect.DeepEqual(result, expected) {
+			t.Errorf("removeHeader() = %v, want %v", result, expected)
+		}
+	})
+
+	t.Run("detected header entire comment no extra blank line", func(t *testing.T) {
+		s := NewSorter(&Params{
+			HasHeader:     true,
+			HeaderPattern: "Copyright",
+		}, afero.NewMemMapFs())
+		s.detectedHeaders["test.tf"] = "/**\n * Copyright (c) 2025\n **/"
+		comment := []string{"/**", " * Copyright (c) 2025", " **/"}
+		result := s.removeHeader(comment, "test.tf")
+		if len(result) != 0 {
+			t.Errorf("removeHeader() = %v, want empty slice", result)
+		}
+	})
+
+	t.Run("legacy fallback preserves blank line before remaining comments", func(t *testing.T) {
+		s := NewSorter(&Params{
+			HasHeader:     true,
+			HeaderPattern: "# This file is managed by Terraform",
+		}, afero.NewMemMapFs())
+		comment := []string{"# This file is managed by Terraform", "", "# Do not edit"}
+		result := s.removeHeader(comment, "unknown.tf")
+		expected := []string{"", "# Do not edit"}
+		if !reflect.DeepEqual(result, expected) {
+			t.Errorf("removeHeader() = %v, want %v", result, expected)
+		}
+	})
+
+	t.Run("legacy fallback entire comment no extra blank line", func(t *testing.T) {
+		s := NewSorter(&Params{
+			HasHeader:     true,
+			HeaderPattern: "# Only line",
+		}, afero.NewMemMapFs())
+		comment := []string{"# Only line"}
+		result := s.removeHeader(comment, "unknown.tf")
+		if len(result) != 0 {
+			t.Errorf("removeHeader() = %v, want empty slice", result)
+		}
+	})
+
+	t.Run("detected header with keep-header does not add blank line", func(t *testing.T) {
+		s := NewSorter(&Params{
+			HasHeader:     true,
+			KeepHeader:    true,
+			HeaderPattern: "Copyright",
+		}, afero.NewMemMapFs())
+		s.detectedHeaders["test.tf"] = "/**\n * Copyright (c) 2025\n **/"
+		comment := []string{"/**", " * Copyright (c) 2025", " **/", "", "# Block comment"}
+		result := s.removeHeader(comment, "test.tf")
+		expected := []string{"# Block comment"}
+		if !reflect.DeepEqual(result, expected) {
+			t.Errorf("removeHeader() = %v, want %v", result, expected)
 		}
 	})
 }
