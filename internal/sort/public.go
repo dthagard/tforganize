@@ -54,6 +54,9 @@ type Params struct {
 	// If CompactEmptyBlocks is set, blocks with no body content are collapsed
 	// to a single line (e.g. `data "aws_region" "current" {}`).
 	CompactEmptyBlocks bool `yaml:"compact-empty-blocks"`
+	// If StripSectionComments is set, section-divider comments (lines composed
+	// of separator characters like #===, #---, etc.) are removed from the output.
+	StripSectionComments bool `yaml:"strip-section-comments"`
 }
 
 // Sort sorts a Terraform file or folder.

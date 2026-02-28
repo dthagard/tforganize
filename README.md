@@ -99,6 +99,12 @@ Collapse empty blocks (e.g. `data "aws_region" "current" {}`) to one line:
 tforganize sort --compact-empty-blocks --inline .
 ```
 
+Strip section-divider comments (e.g. `# === Section ===`, `# ---`) while sorting:
+
+```bash
+tforganize sort --strip-section-comments --inline .
+```
+
 Check for drift in CI (exits non-zero and shows what changed):
 
 ```bash
@@ -161,6 +167,7 @@ Flags:
   -o, --output-dir string       directory for sorted files (required unless --inline)
   -R, --recursive               sort all nested directories (each directory independently)
   -r, --remove-comments         drop all comments except headers kept via --keep-header
+      --strip-section-comments  remove section-divider comments (e.g. # === Section ===, # ---)
 ```
 
 `--diff` and `--check` can be combined: `--diff --check` prints the unified diff **and** exits non-zero if any file would change.
@@ -257,6 +264,7 @@ Key fields:
 | `output-dir`     | Same as `--output-dir`                       |
 | `recursive`      | Same as `--recursive`                        |
 | `remove-comments`| Same as `--remove-comments`                  |
+| `strip-section-comments` | Same as `--strip-section-comments`     |
 
 `tforganize` refuses to run with `keep-header: true` unless `has-header` is true **and** `header-pattern` is non-empty — the same validation applies to CLI flags.
 
