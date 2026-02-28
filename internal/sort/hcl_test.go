@@ -337,7 +337,7 @@ func TestGetNodeComment(t *testing.T) {
 			" * This is a block comment",
 			" */",
 		}
-		result := s.getNodeComment(lines, 3)
+		result := s.getNodeComment(lines, 3, "test.tf")
 		if !reflect.DeepEqual(result, expected) {
 			t.Errorf("getNodeComment() = %v, want %v", result, expected)
 		}
@@ -363,7 +363,7 @@ func TestGetNodeComment(t *testing.T) {
 			" */",
 			"",
 		}
-		result := s.getNodeComment(lines, 4)
+		result := s.getNodeComment(lines, 4, "test.tf")
 		if !reflect.DeepEqual(result, expected) {
 			t.Errorf("getNodeComment() = %v, want %v", result, expected)
 		}
@@ -385,7 +385,7 @@ func TestGetNodeComment(t *testing.T) {
 			"# First comment",
 			"# Second comment",
 		}
-		result := s.getNodeComment(lines, 2)
+		result := s.getNodeComment(lines, 2, "test.tf")
 		if !reflect.DeepEqual(result, expected) {
 			t.Errorf("getNodeComment() = %v, want %v", result, expected)
 		}
@@ -404,7 +404,7 @@ func TestGetNodeComment(t *testing.T) {
 			`resource "aws_instance" "foo" {`,
 			"}",
 		}
-		result := s.getNodeComment(lines, 3)
+		result := s.getNodeComment(lines, 3, "test.tf")
 		if len(result) != 0 {
 			t.Errorf("getNodeComment() = %v, want empty slice", result)
 		}
@@ -480,6 +480,330 @@ func TestParseHclFileNonHclsyntaxBody(t *testing.T) {
 	if !strings.Contains(err.Error(), "*hclsyntax.Body") {
 		t.Errorf("parseHclFile() error = %q; want it to mention *hclsyntax.Body", err.Error())
 	}
+}
+
+func TestFindHeaderInLines(t *testing.T) {
+
+	/*********************************************************************/
+	// Multi-line block comment with double-asterisk close (**/). The
+	// header pattern is a partial match ("Copyright"), not the full text.
+	/*********************************************************************/
+
+	t.Run("block comment with double asterisk close", func(t *testing.T) {
+		s := NewSorter(&Params{
+			HasHeader:     true,
+			HeaderPattern: "Copyright",
+		}, afero.NewMemMapFs())
+
+		lines := []string{
+			"/**",
+			" * Copyright (c) 2025 Example Corp",
+			" **/",
+			"",
+			`resource "aws_instance" "foo" {`,
+			"}",
+		}
+
+		header := s.findHeaderInLines(lines)
+		expected := "/**\n * Copyright (c) 2025 Example Corp\n **/"
+		if header != expected {
+			t.Errorf("findHeaderInLines() = %q, want %q", header, expected)
+		}
+	})
+
+	/*********************************************************************/
+	// Block comment with standard close (*/). The header pattern matches
+	// a substring within the header.
+	/*********************************************************************/
+
+	t.Run("block comment with standard close", func(t *testing.T) {
+		s := NewSorter(&Params{
+			HasHeader:     true,
+			HeaderPattern: "Apache License",
+		}, afero.NewMemMapFs())
+
+		lines := []string{
+			"/**",
+			" * Licensed under the Apache License, Version 2.0",
+			" */",
+			"",
+			`resource "aws_instance" "foo" {`,
+		}
+
+		header := s.findHeaderInLines(lines)
+		expected := "/**\n * Licensed under the Apache License, Version 2.0\n */"
+		if header != expected {
+			t.Errorf("findHeaderInLines() = %q, want %q", header, expected)
+		}
+	})
+
+	/*********************************************************************/
+	// Single-line hash comments as header.
+	/*********************************************************************/
+
+	t.Run("hash comment header", func(t *testing.T) {
+		s := NewSorter(&Params{
+			HasHeader:     true,
+			HeaderPattern: "managed by Terraform",
+		}, afero.NewMemMapFs())
+
+		lines := []string{
+			"# This file is managed by Terraform",
+			"# Do not edit manually",
+			"",
+			`variable "name" {`,
+		}
+
+		header := s.findHeaderInLines(lines)
+		expected := "# This file is managed by Terraform\n# Do not edit manually"
+		if header != expected {
+			t.Errorf("findHeaderInLines() = %q, want %q", header, expected)
+		}
+	})
+
+	/*********************************************************************/
+	// Pattern not found in the comment → no header detected.
+	/*********************************************************************/
+
+	t.Run("pattern not found returns empty", func(t *testing.T) {
+		s := NewSorter(&Params{
+			HasHeader:     true,
+			HeaderPattern: "NONEXISTENT",
+		}, afero.NewMemMapFs())
+
+		lines := []string{
+			"# A comment",
+			`resource "aws_instance" "foo" {`,
+		}
+
+		header := s.findHeaderInLines(lines)
+		if header != "" {
+			t.Errorf("findHeaderInLines() = %q, want empty string", header)
+		}
+	})
+
+	/*********************************************************************/
+	// No comments at top of file → no header.
+	/*********************************************************************/
+
+	t.Run("no comments returns empty", func(t *testing.T) {
+		s := NewSorter(&Params{
+			HasHeader:     true,
+			HeaderPattern: "Copyright",
+		}, afero.NewMemMapFs())
+
+		lines := []string{
+			`resource "aws_instance" "foo" {`,
+			"}",
+		}
+
+		header := s.findHeaderInLines(lines)
+		if header != "" {
+			t.Errorf("findHeaderInLines() = %q, want empty string", header)
+		}
+	})
+
+	/*********************************************************************/
+	// header-end-pattern explicitly marks the end of the header, even
+	// when there are more comments after it.
+	/*********************************************************************/
+
+	t.Run("header end pattern", func(t *testing.T) {
+		s := NewSorter(&Params{
+			HasHeader:        true,
+			HeaderPattern:    "/**",
+			HeaderEndPattern: "**/",
+		}, afero.NewMemMapFs())
+
+		lines := []string{
+			"/**",
+			" * Copyright (c) 2025",
+			" **/",
+			"# This is a block comment, not the header",
+			`resource "aws_instance" "foo" {`,
+		}
+
+		header := s.findHeaderInLines(lines)
+		expected := "/**\n * Copyright (c) 2025\n **/"
+		if header != expected {
+			t.Errorf("findHeaderInLines() = %q, want %q", header, expected)
+		}
+	})
+
+	/*********************************************************************/
+	// Leading blank lines before the header are skipped.
+	/*********************************************************************/
+
+	t.Run("leading blank lines skipped", func(t *testing.T) {
+		s := NewSorter(&Params{
+			HasHeader:     true,
+			HeaderPattern: "Copyright",
+		}, afero.NewMemMapFs())
+
+		lines := []string{
+			"",
+			"",
+			"/**",
+			" * Copyright 2025",
+			" */",
+			`resource "aws_instance" "foo" {`,
+		}
+
+		header := s.findHeaderInLines(lines)
+		expected := "/**\n * Copyright 2025\n */"
+		if header != expected {
+			t.Errorf("findHeaderInLines() = %q, want %q", header, expected)
+		}
+	})
+
+	/*********************************************************************/
+	// YAML literal block pattern with trailing newline still matches.
+	/*********************************************************************/
+
+	t.Run("yaml trailing newline pattern still matches", func(t *testing.T) {
+		s := NewSorter(&Params{
+			HasHeader:     true,
+			HeaderPattern: "/**\n * Copyright 2025\n */\n", // YAML | adds trailing newline
+		}, afero.NewMemMapFs())
+
+		lines := []string{
+			"/**",
+			" * Copyright 2025",
+			" */",
+			`resource "aws_instance" "foo" {`,
+		}
+
+		header := s.findHeaderInLines(lines)
+		expected := "/**\n * Copyright 2025\n */"
+		if header != expected {
+			t.Errorf("findHeaderInLines() = %q, want %q", header, expected)
+		}
+	})
+}
+
+func TestRemoveHeaderWithDetectedHeader(t *testing.T) {
+
+	/*********************************************************************/
+	// When a detected header is stored, removeHeader should strip exactly
+	// those lines from the comment and return the remainder.
+	/*********************************************************************/
+
+	t.Run("strips detected header lines", func(t *testing.T) {
+		s := NewSorter(&Params{
+			HasHeader:     true,
+			HeaderPattern: "Copyright",
+		}, afero.NewMemMapFs())
+
+		// Pre-populate the detected header.
+		s.detectedHeaders["test.tf"] = "/**\n * Copyright (c) 2025\n **/"
+
+		comment := []string{
+			"/**",
+			" * Copyright (c) 2025",
+			" **/",
+			"",
+			"# Block comment",
+		}
+
+		result := s.removeHeader(comment, "test.tf")
+		expected := []string{"# Block comment"}
+		if !reflect.DeepEqual(result, expected) {
+			t.Errorf("removeHeader() = %v, want %v", result, expected)
+		}
+	})
+
+	/*********************************************************************/
+	// When detected header matches the entire comment, result is empty.
+	/*********************************************************************/
+
+	t.Run("entire comment is header", func(t *testing.T) {
+		s := NewSorter(&Params{
+			HasHeader:     true,
+			HeaderPattern: "Copyright",
+		}, afero.NewMemMapFs())
+
+		s.detectedHeaders["test.tf"] = "/**\n * Copyright (c) 2025\n **/"
+
+		comment := []string{
+			"/**",
+			" * Copyright (c) 2025",
+			" **/",
+			"",
+		}
+
+		result := s.removeHeader(comment, "test.tf")
+		if len(result) != 0 {
+			t.Errorf("removeHeader() = %v, want empty slice", result)
+		}
+	})
+
+	/*********************************************************************/
+	// When no detected header exists, falls back to legacy string replace.
+	/*********************************************************************/
+
+	t.Run("legacy fallback when no detected header", func(t *testing.T) {
+		s := NewSorter(&Params{
+			HasHeader:     true,
+			HeaderPattern: "# This file is managed by Terraform",
+		}, afero.NewMemMapFs())
+
+		comment := []string{
+			"# This file is managed by Terraform",
+			"# Do not edit",
+		}
+
+		result := s.removeHeader(comment, "unknown.tf")
+		expected := []string{"# Do not edit"}
+		if !reflect.DeepEqual(result, expected) {
+			t.Errorf("removeHeader() = %v, want %v", result, expected)
+		}
+	})
+}
+
+func TestAddHeaderWithDetectedHeader(t *testing.T) {
+
+	/*********************************************************************/
+	// When a detected header exists, addHeader should use it instead of
+	// the raw HeaderPattern.
+	/*********************************************************************/
+
+	t.Run("uses detected header", func(t *testing.T) {
+		s := NewSorter(&Params{
+			HasHeader:     true,
+			HeaderPattern: "Copyright",
+			KeepHeader:    true,
+		}, afero.NewMemMapFs())
+
+		s.detectedHeaders["test.tf"] = "/**\n * Copyright (c) 2025\n **/"
+
+		content := []byte("resource \"aws_instance\" \"a\" {}\n")
+		result := s.addHeader(content, "test.tf")
+
+		expected := "/**\n * Copyright (c) 2025\n **/\n\nresource \"aws_instance\" \"a\" {}\n"
+		if string(result) != expected {
+			t.Errorf("addHeader() = %q, want %q", string(result), expected)
+		}
+	})
+
+	/*********************************************************************/
+	// When no detected header exists, falls back to HeaderPattern.
+	/*********************************************************************/
+
+	t.Run("falls back to HeaderPattern", func(t *testing.T) {
+		s := NewSorter(&Params{
+			HasHeader:     true,
+			HeaderPattern: "# Header\n",
+			KeepHeader:    true,
+		}, afero.NewMemMapFs())
+
+		content := []byte("resource \"aws_instance\" \"a\" {}\n")
+		result := s.addHeader(content, "unknown.tf")
+
+		expected := "# Header\n\nresource \"aws_instance\" \"a\" {}\n"
+		if string(result) != expected {
+			t.Errorf("addHeader() = %q, want %q", string(result), expected)
+		}
+	})
 }
 
 func TestRemoveLeadingEmptyLines(t *testing.T) {

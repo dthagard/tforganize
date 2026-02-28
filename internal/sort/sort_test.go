@@ -206,6 +206,30 @@ func TestSortFile(t *testing.T) {
 		path := filepath.Join(testDataDir, "import_check_blocks")
 		testSortFile(path, t)
 	})
+
+	/*********************************************************************/
+	// Multi-line header with double-asterisk close (**/) and a partial
+	// header-pattern ("Copyright"). This is the HIGH-severity bug from
+	// the improvements file: previously, a partial pattern caused
+	// removeHeader to leave comment fragments and addHeader to prepend
+	// only the partial pattern, producing invalid HCL.
+	/*********************************************************************/
+
+	t.Run("multiline header double asterisk", func(t *testing.T) {
+		path := filepath.Join(testDataDir, "multiline_header_double_asterisk")
+		testSortFile(path, t)
+	})
+
+	/*********************************************************************/
+	// Multi-line header with --header-end-pattern set. This verifies that
+	// the header is bounded by the start/end patterns and a block comment
+	// after the header is not treated as part of it.
+	/*********************************************************************/
+
+	t.Run("header end pattern", func(t *testing.T) {
+		path := filepath.Join(testDataDir, "header_end_pattern")
+		testSortFile(path, t)
+	})
 }
 
 // testSortFile is a helper function for TestSortFile
@@ -698,6 +722,125 @@ resource "aws_s3_bucket" "alpha" {
 		}
 		if aIdx > bIdx {
 			t.Errorf("alpha should come before beta in sorted output")
+		}
+	})
+}
+
+// TestSortBytesMultiLineHeader verifies that SortBytes correctly handles
+// multi-line /** **/ headers with a partial header-pattern.
+func TestSortBytesMultiLineHeader(t *testing.T) {
+
+	/*********************************************************************/
+	// Partial pattern ("Copyright") with keep-header: the full header
+	// must be preserved at the top and the body must be sorted.
+	/*********************************************************************/
+
+	t.Run("partial pattern preserves full header", func(t *testing.T) {
+		input := []byte(`/**
+ * Copyright (c) 2025 Example Corp
+ **/
+
+resource "aws_s3_bucket" "beta" {
+  bucket = "my-beta-bucket"
+}
+
+resource "aws_s3_bucket" "alpha" {
+  bucket = "my-alpha-bucket"
+}
+`)
+		result, err := SortBytes(input, "main.tf", &Params{
+			HasHeader:     true,
+			KeepHeader:    true,
+			HeaderPattern: "Copyright",
+		})
+		if err != nil {
+			t.Fatalf("SortBytes returned unexpected error: %v", err)
+		}
+
+		out := string(result)
+		// Header must appear at the top, fully intact.
+		if !strings.HasPrefix(out, "/**\n * Copyright (c) 2025 Example Corp\n **/") {
+			t.Errorf("header not preserved at top of output:\n%s", out)
+		}
+		// alpha must come before beta.
+		aIdx := strings.Index(out, "alpha")
+		bIdx := strings.Index(out, "beta")
+		if aIdx == -1 || bIdx == -1 {
+			t.Fatalf("expected both alpha and beta in output:\n%s", out)
+		}
+		if aIdx > bIdx {
+			t.Errorf("alpha should come before beta in sorted output")
+		}
+	})
+
+	/*********************************************************************/
+	// has-header without keep-header: the header should be stripped from
+	// the output entirely.
+	/*********************************************************************/
+
+	t.Run("has-header without keep-header strips header", func(t *testing.T) {
+		input := []byte(`/**
+ * Copyright (c) 2025 Example Corp
+ **/
+
+resource "aws_s3_bucket" "only" {
+  bucket = "my-bucket"
+}
+`)
+		result, err := SortBytes(input, "main.tf", &Params{
+			HasHeader:     true,
+			HeaderPattern: "Copyright",
+		})
+		if err != nil {
+			t.Fatalf("SortBytes returned unexpected error: %v", err)
+		}
+
+		out := string(result)
+		if strings.Contains(out, "Copyright") {
+			t.Errorf("header should be stripped when keep-header is false:\n%s", out)
+		}
+		if !strings.Contains(out, "aws_s3_bucket") {
+			t.Errorf("resource block should still be present:\n%s", out)
+		}
+	})
+
+	/*********************************************************************/
+	// header-end-pattern: the header ends at the line matching the end
+	// pattern; comments after that line belong to their blocks.
+	/*********************************************************************/
+
+	t.Run("header end pattern preserves block comment after header", func(t *testing.T) {
+		input := []byte(`/**
+ * Copyright (c) 2025
+ **/
+# This comment belongs to beta
+resource "aws_s3_bucket" "beta" {
+  bucket = "my-beta-bucket"
+}
+
+resource "aws_s3_bucket" "alpha" {
+  bucket = "my-alpha-bucket"
+}
+`)
+		result, err := SortBytes(input, "main.tf", &Params{
+			HasHeader:        true,
+			KeepHeader:       true,
+			HeaderPattern:    "/**",
+			HeaderEndPattern: "**/",
+		})
+		if err != nil {
+			t.Fatalf("SortBytes returned unexpected error: %v", err)
+		}
+
+		out := string(result)
+		// Header must be preserved.
+		if !strings.HasPrefix(out, "/**\n * Copyright (c) 2025\n **/") {
+			t.Errorf("header not preserved at top of output:\n%s", out)
+		}
+		// The block comment "# This comment belongs to beta" should still
+		// be attached to the beta resource (after alpha due to sorting).
+		if !strings.Contains(out, "# This comment belongs to beta") {
+			t.Errorf("block comment should be preserved:\n%s", out)
 		}
 	})
 }

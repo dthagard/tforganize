@@ -21,6 +21,12 @@ type Sorter struct {
 	afs        *afero.Afero
 	mu         sync.Mutex
 	linesCache map[string][]string
+	// detectedHeaders maps input file paths to their detected header text.
+	// Populated by detectFileHeader before sorting; used by removeHeader
+	// and addHeader to handle the complete header regardless of whether
+	// HeaderPattern is a full match or a partial substring.
+	detectedHeaders   map[string]string
+	detectedHeadersMu sync.Mutex
 }
 
 // NewSorter constructs a Sorter for a single sort run.
@@ -36,10 +42,11 @@ func NewSorter(params *Params, fs afero.Fs) *Sorter {
 	}
 	paramsCopy := *params // copy, not pointer share
 	return &Sorter{
-		params:     &paramsCopy,
-		fs:         fs,
-		afs:        &afero.Afero{Fs: fs},
-		linesCache: make(map[string][]string),
+		params:          &paramsCopy,
+		fs:              fs,
+		afs:             &afero.Afero{Fs: fs},
+		linesCache:      make(map[string][]string),
+		detectedHeaders: make(map[string]string),
 	}
 }
 

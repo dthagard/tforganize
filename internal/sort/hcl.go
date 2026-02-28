@@ -118,7 +118,8 @@ func isSortable(file fs.FileInfo) bool {
 }
 
 // getNodeComment returns the comment lines for the node starting at the given line.
-func (s *Sorter) getNodeComment(lines []string, startLine int) []string {
+// filename is used to look up the pre-detected header for correct removal.
+func (s *Sorter) getNodeComment(lines []string, startLine int, filename string) []string {
 	log.WithFields(log.Fields{"lines": lines, "startLine": startLine}).Traceln("Starting getNodeComment")
 
 	// Initialize the return value
@@ -162,7 +163,7 @@ func (s *Sorter) getNodeComment(lines []string, startLine int) []string {
 
 		// Remove the header if present
 		if s.params.HasHeader {
-			comment = s.removeHeader(comment)
+			comment = s.removeHeader(comment, filename)
 		}
 
 		// Remove the trailing empty lines
@@ -172,10 +173,141 @@ func (s *Sorter) getNodeComment(lines []string, startLine int) []string {
 	return comment
 }
 
+// detectFileHeader scans the raw lines of a file for a leading comment header
+// and stores the detected text in s.detectedHeaders keyed by filename.
+//
+// The detection logic:
+//  1. If HeaderEndPattern is set, everything from the first line matching
+//     HeaderPattern (or the first comment line) through the first line
+//     matching HeaderEndPattern is treated as the header.
+//  2. Otherwise, the leading block comment (/* … */) or consecutive line
+//     comments (# / //) are captured as the header.
+//  3. The captured text must contain HeaderPattern (when non-empty) to be
+//     accepted as a header.
+func (s *Sorter) detectFileHeader(filename string) error {
+	lines, err := s.getLinesFromFile(filename)
+	if err != nil {
+		return err
+	}
+
+	header := s.findHeaderInLines(lines)
+	if header != "" {
+		s.detectedHeadersMu.Lock()
+		s.detectedHeaders[filename] = header
+		s.detectedHeadersMu.Unlock()
+	}
+	return nil
+}
+
+// findHeaderInLines extracts a header comment block from the top of a file's
+// lines. It returns the joined header text or "" if no header is found.
+func (s *Sorter) findHeaderInLines(lines []string) string {
+	var headerLines []string
+	insideBlockComment := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Skip leading empty lines before the header starts
+		if len(headerLines) == 0 && trimmed == "" {
+			continue
+		}
+
+		if insideBlockComment {
+			headerLines = append(headerLines, line)
+			// Check for end of block comment
+			if s.params.HeaderEndPattern != "" {
+				if strings.Contains(trimmed, s.params.HeaderEndPattern) {
+					break
+				}
+			} else if strings.HasSuffix(trimmed, "*/") {
+				break
+			}
+			continue
+		}
+
+		// Check for start of block comment
+		if strings.HasPrefix(trimmed, "/*") {
+			insideBlockComment = true
+			headerLines = append(headerLines, line)
+			// Single-line block comment (e.g. /* header */)
+			if s.params.HeaderEndPattern != "" {
+				if strings.Contains(trimmed, s.params.HeaderEndPattern) {
+					break
+				}
+			} else if strings.HasSuffix(trimmed, "*/") {
+				break
+			}
+			continue
+		}
+
+		// Check for line comments (# or //)
+		if strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "//") {
+			headerLines = append(headerLines, line)
+			if s.params.HeaderEndPattern != "" && strings.Contains(trimmed, s.params.HeaderEndPattern) {
+				break
+			}
+			continue
+		}
+
+		// Non-comment, non-blank line — header region ends
+		break
+	}
+
+	if len(headerLines) == 0 {
+		return ""
+	}
+
+	header := strings.Join(headerLines, "\n")
+
+	// If HeaderPattern is set, verify the header contains it.
+	// Trim trailing newlines from the pattern to handle YAML literal blocks.
+	pattern := strings.TrimRight(s.params.HeaderPattern, "\n")
+	if pattern != "" && !strings.Contains(header, pattern) {
+		return "" // Pattern not found in detected header
+	}
+
+	return header
+}
+
 // removeHeader removes the header from the comment lines.
-func (s *Sorter) removeHeader(lines []string) []string {
+//
+// When a pre-detected header is available for the file, the function performs a
+// line-by-line prefix match and strips exactly those lines. This correctly
+// handles partial header-pattern values (e.g. just "Copyright" or "/**").
+//
+// When no pre-detected header exists (e.g. SortBytes with an exact pattern),
+// it falls back to the legacy strings.Replace behaviour.
+func (s *Sorter) removeHeader(lines []string, filename string) []string {
 	log.WithField("lines", lines).Traceln("Starting removeHeader")
 
+	// Look up the pre-detected header for this file.
+	s.detectedHeadersMu.Lock()
+	detectedHeader := s.detectedHeaders[filename]
+	s.detectedHeadersMu.Unlock()
+
+	if detectedHeader != "" {
+		headerLines := strings.Split(detectedHeader, "\n")
+
+		// Check if the comment lines start with the detected header.
+		if len(lines) >= len(headerLines) {
+			match := true
+			for i, hl := range headerLines {
+				if lines[i] != hl {
+					match = false
+					break
+				}
+			}
+			if match {
+				remaining := lines[len(headerLines):]
+				remaining = removeLeadingEmptyLines(remaining)
+				return remaining
+			}
+		}
+	}
+
+	// Fallback: legacy exact-substring removal (handles SortBytes and
+	// cases where the full header text is provided as the pattern).
 	comment := strings.Join(lines, "\n")
 	comment = strings.Replace(comment, s.params.HeaderPattern, "", 1)
 	result := strings.Split(comment, "\n")
@@ -187,9 +319,30 @@ func (s *Sorter) removeHeader(lines []string) []string {
 }
 
 // addHeader prefixes a comment header to a byte array.
-func (s *Sorter) addHeader(buffer []byte) []byte {
+//
+// When a pre-detected header is available for the file, it is used instead of
+// the raw HeaderPattern. This ensures the complete header is re-added even when
+// HeaderPattern is only a partial match string.
+func (s *Sorter) addHeader(buffer []byte, filename string) []byte {
 	log.Traceln("Starting addHeader")
 
+	// Use the pre-detected header if available; fall back to HeaderPattern.
+	s.detectedHeadersMu.Lock()
+	header := s.detectedHeaders[filename]
+	s.detectedHeadersMu.Unlock()
+
+	if header != "" {
+		headerBytes := []byte(header)
+		newlineBytes := []byte("\n\n")
+
+		result := make([]byte, 0, len(headerBytes)+len(buffer)+len(newlineBytes))
+		result = append(result, headerBytes...)
+		result = append(result, newlineBytes...)
+		result = append(result, buffer...)
+		return result
+	}
+
+	// Fallback: use HeaderPattern directly (legacy behaviour).
 	headerBytes := []byte(s.params.HeaderPattern)
 	newlineBytes := []byte("\n")
 

@@ -72,7 +72,15 @@ func (s *Sorter) sortFile(path string) (map[string][]byte, error) {
 		return nil, fmt.Errorf("could not get body from file: %w", err)
 	}
 
-	return s.sortBody(body)
+	// Detect the file header before sorting so removeHeader/addHeader can
+	// operate on the complete header text regardless of HeaderPattern value.
+	if s.params.HasHeader {
+		if err := s.detectFileHeader(path); err != nil {
+			return nil, fmt.Errorf("could not detect file header: %w", err)
+		}
+	}
+
+	return s.sortBody(body, path)
 }
 
 // sortFileBytes sorts in-memory HCL content into one or more output files.
@@ -81,16 +89,25 @@ func (s *Sorter) sortFileBytes(content []byte, filename string) (map[string][]by
 
 	s.cacheLinesFromBytes(content, filename)
 
+	// Detect the file header before sorting.
+	if s.params.HasHeader {
+		if err := s.detectFileHeader(filename); err != nil {
+			return nil, fmt.Errorf("could not detect file header: %w", err)
+		}
+	}
+
 	body, err := s.parseHclBytes(content, filename)
 	if err != nil {
 		return nil, fmt.Errorf("could not get body from bytes: %w", err)
 	}
 
-	return s.sortBody(body)
+	return s.sortBody(body, filename)
 }
 
 // sortBody sorts an HCL body's blocks and returns the formatted output.
-func (s *Sorter) sortBody(body *hclsyntax.Body) (map[string][]byte, error) {
+// inputFilename is the original file path, used to look up the pre-detected
+// header for correct re-addition when --keep-header is set.
+func (s *Sorter) sortBody(body *hclsyntax.Body, inputFilename string) (map[string][]byte, error) {
 	log.Debugln("Sorting blocks...")
 	sortedFileBytes, err := s.sortBlocks(body.Blocks)
 	if err != nil {
@@ -102,7 +119,7 @@ func (s *Sorter) sortBody(body *hclsyntax.Body) (map[string][]byte, error) {
 		buffer := v
 		if s.params.KeepHeader {
 			log.Debugln("Adding header...")
-			buffer = s.addHeader(buffer)
+			buffer = s.addHeader(buffer, inputFilename)
 		}
 		formatted := hclwrite.Format(buffer)
 
@@ -292,7 +309,7 @@ func (s *Sorter) getBlockOpeningBytes(block *hclsyntax.Block) ([]byte, error) {
 		}
 
 		startLine := block.TypeRange.Start.Line - 1 // Subtract 1 to account for 0-indexing of string arrays vs HCL line numbers
-		nodeComment := s.getNodeComment(lines, startLine)
+		nodeComment := s.getNodeComment(lines, startLine, block.TypeRange.Filename)
 
 		if len(nodeComment) > 0 {
 			output = append(output, []byte(fmt.Sprintf("%s\n", strings.Join(nodeComment, "\n")))...)
@@ -453,7 +470,7 @@ func (s *Sorter) readNodeFromFile(filename string, startLine, startCol, endLine,
 	var output []string
 
 	if !s.params.RemoveComments {
-		nodeComment := s.getNodeComment(lines, startLine)
+		nodeComment := s.getNodeComment(lines, startLine, filename)
 
 		if len(nodeComment) > 0 {
 			output = append(output, nodeComment...)
