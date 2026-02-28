@@ -300,8 +300,11 @@ func (s *Sorter) removeHeader(lines []string, filename string) []string {
 			}
 			if match {
 				remaining := lines[len(headerLines):]
-				remaining = removeLeadingEmptyLines(remaining)
-				return remaining
+				stripped := removeLeadingEmptyLines(remaining)
+				if !s.params.KeepHeader && len(stripped) > 0 && len(remaining) > len(stripped) {
+					stripped = append([]string{""}, stripped...)
+				}
+				return stripped
 			}
 		}
 	}
@@ -313,9 +316,12 @@ func (s *Sorter) removeHeader(lines []string, filename string) []string {
 	result := strings.Split(comment, "\n")
 
 	// Remove the leading empty lines
-	result = removeLeadingEmptyLines(result)
+	stripped := removeLeadingEmptyLines(result)
+	if !s.params.KeepHeader && len(stripped) > 0 && len(result)-len(stripped) >= 2 {
+		stripped = append([]string{""}, stripped...)
+	}
 
-	return result
+	return stripped
 }
 
 // addHeader prefixes a comment header to a byte array.
