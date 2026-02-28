@@ -13,53 +13,58 @@ var flags = &Params{}
 
 func GetCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Args: cobra.MaximumNArgs(1),
-		Example: `  tforganize sort main.tf
+		Args: cobra.ArbitraryArgs,
+		Example: `  tforganize sort main.tf variables.tf
   tforganize sort ./terraform/
   cat main.tf | tforganize sort -`,
 		Long: `Sort reads a Terraform file or folder and sorts the resources found alphabetically ascending by resource type and name.
 
 When the argument is "-" or omitted and stdin is piped, input is read from stdin and the sorted output is written to stdout.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Determine if we should read from stdin.
-			readStdin := false
+			// No args: check if stdin is a pipe.
 			if len(args) == 0 {
-				// No args: check if stdin is a pipe.
 				stat, _ := os.Stdin.Stat()
 				if stat != nil && (stat.Mode()&os.ModeCharDevice) == 0 {
-					readStdin = true
-				} else {
-					return fmt.Errorf("no target specified; provide a file/folder path or pipe content via stdin")
+					return sortStdin(flags)
 				}
-			} else if args[0] == "-" {
-				readStdin = true
+				return fmt.Errorf("no target specified; provide a file/folder path or pipe content via stdin")
 			}
 
-			if readStdin {
-				if flags.Inline {
-					return fmt.Errorf("the --inline flag cannot be used with stdin")
-				}
-				content, err := io.ReadAll(os.Stdin)
-				if err != nil {
-					return fmt.Errorf("could not read stdin: %w", err)
-				}
-				sorted, err := SortBytes(content, "stdin.tf", flags)
-				if err != nil {
+			// Explicit "-" means read from stdin.
+			if len(args) == 1 && args[0] == "-" {
+				return sortStdin(flags)
+			}
+
+			for _, target := range args {
+				if err := Sort(target, flags); err != nil {
 					return err
 				}
-				fmt.Print(string(sorted))
-				return nil
 			}
-
-			return Sort(args[0], flags)
+			return nil
 		},
 		Short: "Sort a Terraform file or folder.",
-		Use:   "sort [file | folder | -]",
+		Use:   "sort [file | folder | -] ...",
 	}
 
 	setFlags(cmd)
 
 	return cmd
+}
+
+func sortStdin(flags *Params) error {
+	if flags.Inline {
+		return fmt.Errorf("the --inline flag cannot be used with stdin")
+	}
+	content, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return fmt.Errorf("could not read stdin: %w", err)
+	}
+	sorted, err := SortBytes(content, "stdin.tf", flags)
+	if err != nil {
+		return err
+	}
+	fmt.Print(string(sorted))
+	return nil
 }
 
 func setFlags(cmd *cobra.Command) {
@@ -76,5 +81,6 @@ func setFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().BoolVar(&flags.Diff, "diff", false, "show a unified diff of changes instead of writing files")
 	cmd.PersistentFlags().BoolVar(&flags.NoSortByType, "no-sort-by-type", false, "sort blocks alphabetically by type instead of using logical type ordering")
 	cmd.PersistentFlags().BoolVar(&flags.StripSectionComments, "strip-section-comments", false, "remove section-divider comments (e.g. # === Section ===, # ---) from the output")
+	cmd.PersistentFlags().BoolVar(&flags.CompactEmptyBlocks, "compact-empty-blocks", false, "collapse empty blocks to a single line (e.g. data \"aws_region\" \"current\" {})")
 	cmd.PersistentFlags().StringArrayVarP(&flags.Excludes, "exclude", "x", []string{}, "glob pattern to exclude from sorting (repeatable; supports **); e.g. --exclude '.terraform/**'")
 }

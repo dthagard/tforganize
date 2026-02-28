@@ -81,6 +81,12 @@ Sort all nested directories recursively:
 tforganize sort --recursive --inline .
 ```
 
+Sort multiple files at once:
+
+```bash
+tforganize sort main.tf variables.tf outputs.tf
+```
+
 Sort from stdin:
 
 ```bash
@@ -148,7 +154,7 @@ tforganize sort \
 ## CLI reference
 
 ```text
-Usage: tforganize sort [file | folder | -] [flags]
+Usage: tforganize sort [file | folder | -] ... [flags]
 
 Flags:
   -c, --check                   exit non-zero if any file would change (dry-run mode)
