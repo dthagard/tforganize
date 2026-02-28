@@ -110,6 +110,29 @@ tforganize sort \
   --remove-comments
 ```
 
+Preserve a multi-line `/** **/` header using a partial pattern:
+
+```bash
+tforganize sort \
+  --inline \
+  --has-header \
+  --header-pattern 'Copyright' \
+  --keep-header \
+  .
+```
+
+Use `--header-end-pattern` for precise control over where the header ends:
+
+```bash
+tforganize sort \
+  --inline \
+  --has-header \
+  --header-pattern '/**' \
+  --header-end-pattern '**/' \
+  --keep-header \
+  .
+```
+
 ## CLI reference
 
 ```text
@@ -123,7 +146,8 @@ Flags:
   -x, --exclude stringArray     glob pattern to exclude from sorting (repeatable; supports **)
   -g, --group-by-type           write each block type to its default file (see table below)
   -e, --has-header              treat files as having a header matched by --header-pattern
-  -p, --header-pattern string   regex or multi-line string that matches the header block
+      --header-end-pattern string  pattern marking the end of a multi-line header block (e.g. '**/' or '*/')
+  -p, --header-pattern string   string that identifies the header block (can be a substring like 'Copyright')
   -i, --inline                  rewrite files in place (otherwise write to --output-dir)
   -k, --keep-header             preserve the matched header in the output (requires --has-header and pattern)
       --no-sort-by-type         sort blocks alphabetically by type instead of using logical type ordering
@@ -199,6 +223,9 @@ header-pattern: |
   /**
    * Company Confidential
    */
+# Optional: use header-end-pattern for partial header-pattern values
+# header-pattern: "Copyright"
+# header-end-pattern: "**/"
 exclude:
   - .terraform/**
   - terraform.tfstate.d/**
@@ -214,7 +241,8 @@ Key fields:
 | `exclude`        | List of glob patterns to exclude             |
 | `group-by-type`  | Same as `--group-by-type`                    |
 | `has-header`     | Indicates a header block exists              |
-| `header-pattern` | Multi-line string or regex used to match header |
+| `header-end-pattern` | Pattern marking the end of a multi-line header (e.g. `**/`) |
+| `header-pattern` | String that identifies the header block (can be a substring) |
 | `inline`         | Same as `--inline`                           |
 | `keep-header`    | Re-emit the matched header (requires the two options above) |
 | `no-sort-by-type`| Same as `--no-sort-by-type`                  |

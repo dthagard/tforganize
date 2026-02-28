@@ -24,6 +24,11 @@ type Params struct {
 	HasHeader bool `yaml:"has-header"`
 	// If the header-pattern flag is set, the header pattern will be used to find the header in the input files.
 	HeaderPattern string `yaml:"header-pattern"`
+	// If the header-end-pattern flag is set, it marks the end of a multi-line header block.
+	// When set together with header-pattern, everything from the first line matching
+	// header-pattern to the first line matching header-end-pattern (inclusive) is treated
+	// as the file header.
+	HeaderEndPattern string `yaml:"header-end-pattern"`
 	// If the inline flag is set, the resources will be sorted in place in the input files.
 	// Conflicts with the group-by-type and output-dir flags.
 	Inline bool `yaml:"inline"`

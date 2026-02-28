@@ -1,0 +1,3 @@
+has-header: true
+keep-header: true
+header-pattern: "Copyright"

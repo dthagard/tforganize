@@ -1,0 +1,4 @@
+has-header: true
+keep-header: true
+header-pattern: "/**"
+header-end-pattern: "**/"
