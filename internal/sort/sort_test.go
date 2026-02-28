@@ -1170,6 +1170,103 @@ resource "aws_instance" "web" {
 	})
 }
 
+// TestSortMultipleFiles verifies that calling Sort() for each of several files
+// (simulating the loop in cmd.go RunE) sorts every file independently.
+func TestSortMultipleFiles(t *testing.T) {
+	t.Run("sorts each file independently", func(t *testing.T) {
+		dir := t.TempDir()
+		outDir := t.TempDir()
+
+		file1Content := `resource "aws_instance" "web" {
+  ami = "ami-web"
+}
+
+resource "aws_instance" "app" {
+  ami = "ami-app"
+}
+`
+		file2Content := `resource "aws_s3_bucket" "logs" {
+  bucket = "logs"
+}
+
+resource "aws_s3_bucket" "data" {
+  bucket = "data"
+}
+`
+
+		file1 := filepath.Join(dir, "main.tf")
+		file2 := filepath.Join(dir, "storage.tf")
+		if err := os.WriteFile(file1, []byte(file1Content), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(file2, []byte(file2Content), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		// Simulate the loop in cmd.go RunE
+		for _, target := range []string{file1, file2} {
+			if err := Sort(target, &Params{OutputDir: outDir}); err != nil {
+				t.Fatalf("Sort(%s) returned unexpected error: %v", target, err)
+			}
+		}
+
+		// Verify file1 is sorted (app before web)
+		out1, err := os.ReadFile(filepath.Join(outDir, "main.tf"))
+		if err != nil {
+			t.Fatalf("main.tf not found in output: %v", err)
+		}
+		appIdx := strings.Index(string(out1), "app")
+		webIdx := strings.Index(string(out1), "web")
+		if appIdx == -1 || webIdx == -1 || appIdx > webIdx {
+			t.Errorf("main.tf: expected app before web in sorted output, got:\n%s", string(out1))
+		}
+
+		// Verify file2 is sorted (data before logs)
+		out2, err := os.ReadFile(filepath.Join(outDir, "storage.tf"))
+		if err != nil {
+			t.Fatalf("storage.tf not found in output: %v", err)
+		}
+		dataIdx := strings.Index(string(out2), "data")
+		logsIdx := strings.Index(string(out2), "logs")
+		if dataIdx == -1 || logsIdx == -1 || dataIdx > logsIdx {
+			t.Errorf("storage.tf: expected data before logs in sorted output, got:\n%s", string(out2))
+		}
+	})
+
+	t.Run("error on first failure stops processing", func(t *testing.T) {
+		dir := t.TempDir()
+
+		validContent := `resource "aws_instance" "a" {
+  ami = "ami-a"
+}
+`
+		invalidContent := `this is not { valid HCL at all
+`
+
+		validFile := filepath.Join(dir, "valid.tf")
+		invalidFile := filepath.Join(dir, "invalid.tf")
+		if err := os.WriteFile(validFile, []byte(validContent), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(invalidFile, []byte(invalidContent), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		// Process invalid file first — should return error immediately.
+		targets := []string{invalidFile, validFile}
+		var firstErr error
+		for _, target := range targets {
+			if err := Sort(target, &Params{Inline: true}); err != nil {
+				firstErr = err
+				break
+			}
+		}
+		if firstErr == nil {
+			t.Fatal("expected error for invalid HCL file, got nil")
+		}
+	})
+}
+
 // TestUnifiedDiff verifies the unifiedDiff function directly.
 func TestUnifiedDiff(t *testing.T) {
 	t.Run("identical strings produce empty diff", func(t *testing.T) {
