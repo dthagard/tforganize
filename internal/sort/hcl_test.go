@@ -806,6 +806,109 @@ func TestAddHeaderWithDetectedHeader(t *testing.T) {
 	})
 }
 
+func TestIsSectionDivider(t *testing.T) {
+	cases := []struct {
+		name string
+		line string
+		want bool
+	}{
+		// Hash-prefixed dividers
+		{"hash separator dashes", "# ---", true},
+		{"hash separator equals", "# ===", true},
+		{"hash separator stars", "# ***", true},
+		{"hash separator tildes", "# ~~~", true},
+		{"hash only", "#", true},
+		{"hash with spaces", "#   ", true},
+		{"hash empty content", "# ", true},
+
+		// Slash-slash-prefixed dividers
+		{"double-slash separator", "// ---", true},
+		{"double-slash empty", "//", true},
+		{"double-slash spaces only", "//   ", true},
+
+		// Titled dividers (bookended by separator chars)
+		{"titled divider equals", "# === REST API ===", true},
+		{"titled divider dashes", "# --- Section ---", true},
+		{"titled divider mixed", "// ~~~ Config ~~~", true},
+
+		// Non-dividers
+		{"plain comment", "# This is a normal comment", false},
+		{"code line", "resource \"aws_instance\" \"foo\" {", false},
+		{"empty string", "", false},
+		{"slash-slash comment text", "// This is a comment", false},
+		{"not a comment at all", "variable \"foo\" {}", false},
+		{"block comment start", "/*", false},
+		{"block comment end", "*/", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isSectionDivider(tc.line)
+			if got != tc.want {
+				t.Errorf("isSectionDivider(%q) = %v, want %v", tc.line, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestStripSectionDividers(t *testing.T) {
+	cases := []struct {
+		name  string
+		input []string
+		want  []string
+	}{
+		{
+			name:  "empty input",
+			input: []string{},
+			want:  []string{},
+		},
+		{
+			name:  "no dividers",
+			input: []string{"# normal comment", "# another comment"},
+			want:  []string{"# normal comment", "# another comment"},
+		},
+		{
+			name:  "only dividers",
+			input: []string{"# ---", "# ===", "# ***"},
+			want:  nil,
+		},
+		{
+			name:  "divider before label",
+			input: []string{"# ---", "# my label"},
+			want:  []string{"# my label"},
+		},
+		{
+			name:  "sandwiched label removed",
+			input: []string{"# ---", "# Section Title", "# ---"},
+			want:  nil,
+		},
+		{
+			name:  "mixed dividers and comments",
+			input: []string{"# ===", "# Section", "# ===", "# real comment"},
+			want:  []string{"# real comment"},
+		},
+		{
+			name:  "trailing divider",
+			input: []string{"# real comment", "# ---"},
+			want:  []string{"# real comment"},
+		},
+		{
+			name:  "leading and trailing empty lines cleaned",
+			input: []string{"# ---", "", "# real comment", "", "# ==="},
+			want:  []string{"# real comment"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := stripSectionDividers(tc.input)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("stripSectionDividers(%v) = %v, want %v", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestRemoveLeadingEmptyLines(t *testing.T) {
 
 	/*********************************************************************/

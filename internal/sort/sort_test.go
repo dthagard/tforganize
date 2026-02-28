@@ -1267,6 +1267,129 @@ resource "aws_s3_bucket" "data" {
 	})
 }
 
+// TestDiffGroupByTypeNewFile verifies that --diff --group-by-type works when
+// the output file doesn't exist yet (covers runDiffMode lines 310-321).
+func TestDiffGroupByTypeNewFile(t *testing.T) {
+	memFS := afero.NewMemMapFs()
+
+	content := `resource "aws_s3_bucket" "b" {
+  bucket = "my-bucket"
+}
+
+variable "env" {
+  default = "dev"
+}
+`
+	_ = memFS.MkdirAll("/test", 0755)
+	_ = afero.WriteFile(memFS, "/test/main.tf", []byte(content), 0644)
+
+	s := NewSorter(&Params{Diff: true, GroupByType: true}, memFS)
+	err := s.run("/test")
+	// Diff mode without --check should return nil even for new files.
+	if err != nil {
+		t.Fatalf("diff group-by-type returned unexpected error: %v", err)
+	}
+}
+
+// TestDiffCheckGroupByTypeNewFile verifies that --diff --check --group-by-type
+// returns ErrCheckFailed when the output file doesn't exist yet.
+func TestDiffCheckGroupByTypeNewFile(t *testing.T) {
+	memFS := afero.NewMemMapFs()
+
+	content := `resource "aws_s3_bucket" "b" {
+  bucket = "my-bucket"
+}
+
+variable "env" {
+  default = "dev"
+}
+`
+	_ = memFS.MkdirAll("/test", 0755)
+	_ = afero.WriteFile(memFS, "/test/main.tf", []byte(content), 0644)
+
+	s := NewSorter(&Params{Diff: true, Check: true, GroupByType: true}, memFS)
+	err := s.run("/test")
+	if err == nil {
+		t.Fatal("expected ErrCheckFailed, got nil")
+	}
+	if !errors.Is(err, ErrCheckFailed) {
+		t.Fatalf("expected errors.Is(err, ErrCheckFailed), got: %v", err)
+	}
+}
+
+// TestRunRecursiveStdoutOutput verifies that recursive mode without --inline
+// and without --output-dir prints to stdout (covers lines 279-282).
+func TestRunRecursiveStdoutOutput(t *testing.T) {
+	memFS := afero.NewMemMapFs()
+
+	_ = memFS.MkdirAll("/root/sub", 0755)
+	_ = afero.WriteFile(memFS, "/root/sub/main.tf", []byte("resource \"aws_instance\" \"a\" {\n  ami = \"ami-a\"\n}\n"), 0644)
+
+	s := NewSorter(&Params{Recursive: true}, memFS)
+	// Should succeed and print to stdout (not write files).
+	err := s.run("/root")
+	if err != nil {
+		t.Fatalf("recursive stdout mode returned unexpected error: %v", err)
+	}
+}
+
+// TestStripSectionCommentsEndToEnd verifies that SortBytes with
+// StripSectionComments removes section-divider comments from the output.
+func TestStripSectionCommentsEndToEnd(t *testing.T) {
+	input := []byte(`# ===========================
+# Section: Resources
+# ===========================
+resource "aws_s3_bucket" "b" {
+  bucket = "my-bucket"
+}
+`)
+	result, err := SortBytes(input, "main.tf", &Params{StripSectionComments: true})
+	if err != nil {
+		t.Fatalf("SortBytes returned unexpected error: %v", err)
+	}
+
+	out := string(result)
+	if strings.Contains(out, "===") {
+		t.Errorf("expected section dividers to be stripped, got:\n%s", out)
+	}
+	if !strings.Contains(out, "aws_s3_bucket") {
+		t.Errorf("expected resource to be preserved, got:\n%s", out)
+	}
+}
+
+// TestSortBytesGroupByType verifies that SortBytes with GroupByType produces
+// multi-file concatenated output (covers the output concatenation path in
+// SortBytes at line 86 of public.go).
+func TestSortBytesGroupByType(t *testing.T) {
+	input := []byte(`resource "aws_s3_bucket" "b" {
+  bucket = "my-bucket"
+}
+
+variable "env" {
+  default = "dev"
+}
+
+output "bucket_name" {
+  value = "my-bucket"
+}
+`)
+	result, err := SortBytes(input, "main.tf", &Params{GroupByType: true})
+	if err != nil {
+		t.Fatalf("SortBytes returned unexpected error: %v", err)
+	}
+
+	out := string(result)
+	if !strings.Contains(out, "variable") {
+		t.Errorf("expected variable block in output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "resource") {
+		t.Errorf("expected resource block in output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "output") {
+		t.Errorf("expected output block in output, got:\n%s", out)
+	}
+}
+
 // TestUnifiedDiff verifies the unifiedDiff function directly.
 func TestUnifiedDiff(t *testing.T) {
 	t.Run("identical strings produce empty diff", func(t *testing.T) {
