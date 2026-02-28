@@ -726,6 +726,62 @@ resource "aws_s3_bucket" "alpha" {
 	})
 }
 
+// TestCompactEmptyBlocks verifies that --compact-empty-blocks collapses
+// empty blocks to a single line.
+func TestCompactEmptyBlocks(t *testing.T) {
+	t.Run("empty data block compacted", func(t *testing.T) {
+		input := []byte("data \"aws_region\" \"current\" {\n}\n")
+		result, err := SortBytes(input, "main.tf", &Params{CompactEmptyBlocks: true})
+		if err != nil {
+			t.Fatalf("SortBytes returned unexpected error: %v", err)
+		}
+		expected := "data \"aws_region\" \"current\" {}\n"
+		if string(result) != expected {
+			t.Errorf("got %q, want %q", string(result), expected)
+		}
+	})
+
+	t.Run("non-empty block unchanged", func(t *testing.T) {
+		input := []byte("resource \"aws_s3_bucket\" \"b\" {\n  bucket = \"my-bucket\"\n}\n")
+		result, err := SortBytes(input, "main.tf", &Params{CompactEmptyBlocks: true})
+		if err != nil {
+			t.Fatalf("SortBytes returned unexpected error: %v", err)
+		}
+		if !strings.Contains(string(result), "bucket") {
+			t.Errorf("non-empty block should still contain its attributes:\n%s", string(result))
+		}
+		if strings.Contains(string(result), "{}") {
+			t.Errorf("non-empty block should not be compacted:\n%s", string(result))
+		}
+	})
+
+	t.Run("multiple empty blocks", func(t *testing.T) {
+		input := []byte("data \"aws_region\" \"current\" {\n}\n\ndata \"aws_caller_identity\" \"current\" {\n}\n")
+		result, err := SortBytes(input, "main.tf", &Params{CompactEmptyBlocks: true})
+		if err != nil {
+			t.Fatalf("SortBytes returned unexpected error: %v", err)
+		}
+		out := string(result)
+		if !strings.Contains(out, "data \"aws_caller_identity\" \"current\" {}") {
+			t.Errorf("expected aws_caller_identity to be compacted:\n%s", out)
+		}
+		if !strings.Contains(out, "data \"aws_region\" \"current\" {}") {
+			t.Errorf("expected aws_region to be compacted:\n%s", out)
+		}
+	})
+
+	t.Run("disabled by default", func(t *testing.T) {
+		input := []byte("data \"aws_region\" \"current\" {\n}\n")
+		result, err := SortBytes(input, "main.tf", &Params{CompactEmptyBlocks: false})
+		if err != nil {
+			t.Fatalf("SortBytes returned unexpected error: %v", err)
+		}
+		if strings.Contains(string(result), "{}") {
+			t.Errorf("block should stay multi-line when CompactEmptyBlocks is false:\n%s", string(result))
+		}
+	})
+}
+
 // TestSortBytesMultiLineHeader verifies that SortBytes correctly handles
 // multi-line /** **/ headers with a partial header-pattern.
 func TestSortBytesMultiLineHeader(t *testing.T) {
