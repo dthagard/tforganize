@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	log "github.com/sirupsen/logrus"
@@ -481,6 +482,71 @@ func TestGetFilesFromTargetSingleFileExcluded(t *testing.T) {
 			t.Errorf("getFilesFromTarget() = %v, want %v", result, expected)
 		}
 	})
+}
+
+// statOnlyFs wraps an afero.Fs but deliberately does NOT implement
+// afero.Lstater, forcing getPathInfo to fall through to the Stat() path.
+type statOnlyFs struct {
+	afero.Fs
+}
+
+// TestGetPathInfoStatFallback verifies that getPathInfo uses Stat() when the
+// filesystem does not implement afero.Lstater (covers lines 64-69).
+func TestGetPathInfoStatFallback(t *testing.T) {
+	memFS := afero.NewMemMapFs()
+	const dir = "/stattest"
+	_ = memFS.MkdirAll(dir, 0755)
+	_ = afero.WriteFile(memFS, dir+"/main.tf", []byte(""), 0644)
+
+	wrapped := &statOnlyFs{Fs: memFS}
+	s := NewSorter(&Params{}, wrapped)
+
+	info, err := s.getPathInfo(dir + "/main.tf")
+	if err != nil {
+		t.Fatalf("getPathInfo returned unexpected error: %v", err)
+	}
+	if info == nil {
+		t.Fatal("getPathInfo returned nil info")
+	}
+	if info.IsDir() {
+		t.Error("expected file, got directory")
+	}
+}
+
+// TestGetPathInfoStatFallbackError verifies that getPathInfo returns an error
+// via the Stat() path for a nonexistent path.
+func TestGetPathInfoStatFallbackError(t *testing.T) {
+	memFS := afero.NewMemMapFs()
+	wrapped := &statOnlyFs{Fs: memFS}
+	s := NewSorter(&Params{}, wrapped)
+
+	_, err := s.getPathInfo("/nonexistent")
+	if err == nil {
+		t.Fatal("expected error for nonexistent path, got nil")
+	}
+}
+
+// TestGetPathInfoSymlinkRefused verifies that getPathInfo refuses symlinks
+// when the filesystem supports Lstat (covers lines 58-59).
+func TestGetPathInfoSymlinkRefused(t *testing.T) {
+	dir := t.TempDir()
+	realFile := filepath.Join(dir, "real.tf")
+	if err := os.WriteFile(realFile, []byte(""), 0644); err != nil {
+		t.Fatal(err)
+	}
+	symlink := filepath.Join(dir, "link.tf")
+	if err := os.Symlink(realFile, symlink); err != nil {
+		t.Skipf("cannot create symlink: %v", err)
+	}
+
+	s := NewSorter(&Params{}, afero.NewOsFs())
+	_, err := s.getPathInfo(symlink)
+	if err == nil {
+		t.Fatal("expected error for symlink, got nil")
+	}
+	if !strings.Contains(err.Error(), "symlink") {
+		t.Errorf("error %q should mention symlink", err.Error())
+	}
 }
 
 // countingFs wraps an afero.Fs and counts the number of Open calls.
