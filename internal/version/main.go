@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	info "github.com/dthagard/tforganize/internal/info"
+	info "github.com/dthagard/tforganize/v2/internal/info"
 )
 
 func GetCommand() *cobra.Command {

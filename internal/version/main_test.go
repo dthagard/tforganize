@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	info "github.com/dthagard/tforganize/internal/info"
+	info "github.com/dthagard/tforganize/v2/internal/info"
 )
 
 func TestVersionCommand(t *testing.T) {

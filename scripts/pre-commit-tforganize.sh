@@ -3,7 +3,7 @@ set -euo pipefail
 
 if ! command -v tforganize &>/dev/null; then
   echo "ERROR: tforganize is not installed or not on PATH." >&2
-  echo "Install it with: go install github.com/dthagard/tforganize@latest" >&2
+  echo "Install it with: go install github.com/dthagard/tforganize/v2@latest" >&2
   echo "Or use the 'tforganize-docker' hook to run via container instead." >&2
   exit 1
 fi

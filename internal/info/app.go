@@ -12,7 +12,7 @@ const AppName string = "tforganize"
 // AppVersion is the current version of this application.
 // It is set at build time via ldflags:
 //
-//	-ldflags "-X github.com/dthagard/tforganize/internal/info.AppVersion=v1.0.0"
+//	-ldflags "-X github.com/dthagard/tforganize/v2/internal/info.AppVersion=v2.2.1"
 var AppVersion = "dev"
 
 // License defined the license type for this application.

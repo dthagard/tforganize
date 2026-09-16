@@ -2,7 +2,7 @@
 BIN_DIR := ./bin
 APP_NAME := tforganize
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-LDFLAGS := -X github.com/dthagard/tforganize/internal/info.AppVersion=$(VERSION)
+LDFLAGS := -X github.com/dthagard/tforganize/v2/internal/info.AppVersion=$(VERSION)
 
 # Go parameters
 GOCMD = go
