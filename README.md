@@ -159,7 +159,7 @@ Usage: tforganize sort [file | folder | -] ... [flags]
 Flags:
   -c, --check                   exit non-zero if any file would change (dry-run mode)
       --compact-empty-blocks    collapse empty blocks to a single line (e.g. data "aws_region" "current" {})
-      --config string           YAML config path (default $HOME/.tforganize.yaml)
+      --config string           config file (default: project root, then $HOME/.tforganize.yaml)
   -d, --debug                   enable verbose logging
       --diff                    show a unified diff of changes instead of writing files
   -x, --exclude stringArray     glob pattern to exclude from sorting (repeatable; supports **)
@@ -230,10 +230,28 @@ You can feed multiple files and directories; `tforganize` builds the combined AS
 
 ## Configuration file
 
-All flags can be set via YAML (default `$HOME/.tforganize.yaml` or pass `--config`). Example:
+Save shared options in `.tforganize.yaml` at your project root. Configuration file selection follows this order:
+
+1. If you pass `--config`, only that file is loaded. Relative paths are resolved from the current working directory.
+2. Otherwise, `tforganize` searches for a `.tforganize` config file (such as `.tforganize.yaml`) in the project root.
+3. If no project config exists, it searches your home directory, for example `$HOME/.tforganize.yaml`.
+
+The project root is the nearest directory containing a `.git` file or directory, starting from the current working directory and walking upward. Outside Git, the current working directory is used instead. No Git executable is required.
+
+Discovery uses the directory where you invoke `tforganize`, not the files or folders passed to `sort`. It does not search intermediate directories or continue beyond the nearest Git root.
+
+Only the first config file found is loaded; project and home configs are **not merged**. Missing default configs are allowed. A missing explicit config, or a malformed or unreadable selected config, causes an error rather than falling back.
+
+Explicit option flags override environment variables, which override values in the selected config file. For example, select a different config and override its `inline` setting:
+
+```bash
+tforganize sort --config=config/team.yaml --inline .
+```
+
+Example project config:
 
 ```yaml
-# ~/.tforganize.yaml
+# .tforganize.yaml
 group-by-type: true
 inline: true
 remove-comments: false
@@ -280,6 +298,8 @@ Key fields:
 
 Add `tforganize` as a [pre-commit](https://pre-commit.com) hook so it runs automatically before every commit.
 
+With project-root discovery, a repository-root `.tforganize.yaml` is loaded automatically; no hook arguments are needed. To select a config explicitly, add `args: [--config=.tforganize.yaml]` as shown below. Pre-commit runs hooks from the repository root, so this relative path resolves there. Omit `args` to use automatic discovery.
+
 #### Script hook (requires `tforganize` on PATH)
 
 ```yaml
@@ -289,6 +309,7 @@ repos:
     rev: v0.0.0  # replace with the desired tag
     hooks:
       - id: tforganize
+        args: [--config=.tforganize.yaml]
 ```
 
 This runs `scripts/pre-commit-tforganize.sh`, which calls `tforganize sort --inline` on the staged `.tf` files. If `tforganize` is not installed you will see a clear error with installation instructions.
@@ -302,9 +323,12 @@ repos:
     rev: v0.0.0  # replace with the desired tag
     hooks:
       - id: tforganize-docker
+        args: [--config=.tforganize.yaml]
 ```
 
 This pulls `ghcr.io/dthagard/tforganize:latest` and runs the sort inside the container. Ideal for teams where not everyone has Go installed.
+
+For the Docker hook, keep the config inside the mounted repository and use a repository-relative path. The container cannot read config files from your host home directory.
 
 ### GitHub Actions
 

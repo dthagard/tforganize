@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/dthagard/tforganize/internal/info"
@@ -46,7 +47,7 @@ func NewRootCommand() *RootCommand {
 }
 
 func (rc *RootCommand) setFlags() {
-	rc.baseCmd.PersistentFlags().StringVar(&config, "config", "", "config file (default is $HOME/.tforganize.yaml)")
+	rc.baseCmd.PersistentFlags().StringVar(&config, "config", "", "config file (default: project root, then $HOME/.tforganize.yaml)")
 	rc.baseCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "verbose logging")
 }
 
@@ -80,11 +81,15 @@ func initConfig(cmd *cobra.Command, args []string) {
 		// Use config file from the flag.
 		v.SetConfigFile(config)
 	} else {
+		project, err := projectConfigDir()
+		cobra.CheckErr(err)
+
 		// Find home directory.
 		home, err := os.UserHomeDir()
 		cobra.CheckErr(err)
 
-		// Search config in home directory with name ".tforganize" (without extension).
+		// Select the project config before home; do not merge the files.
+		v.AddConfigPath(project)
 		v.AddConfigPath(home)
 		v.SetConfigType("yaml")
 		v.SetConfigName(".tforganize")
@@ -120,6 +125,25 @@ func initConfig(cmd *cobra.Command, args []string) {
 
 	v.SetDefault("author", fmt.Sprintf("%s <%s>", info.AppRepoOwner, info.AppRepoOwnerEmail))
 	v.SetDefault("license", info.AppLicense)
+}
+
+// projectConfigDir finds the nearest Git root, or uses cwd outside Git.
+// A .git file marks a worktree or submodule just as a directory marks a checkout.
+func projectConfigDir() (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	for dir := cwd; ; dir = filepath.Dir(dir) {
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			return dir, nil
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
+		if filepath.Dir(dir) == dir {
+			return cwd, nil
+		}
+	}
 }
 
 // Bind each cobra flag to its associated viper configuration (config file and environment variable)
