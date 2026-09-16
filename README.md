@@ -429,7 +429,7 @@ docker run --rm -v "$(pwd)":/tforganize -w /tforganize   ghcr.io/dthagard/tforga
 
 ## Terraform compatibility
 
-CI checks Terraform **1.15.9** and **1.16.2**. Provider-free fixtures are
+CI checks Terraform **1.15.9** and **1.16.3**. Provider-free fixtures are
 initialized, validated, and planned before sorting, after recursive inline
 sorting, and after grouping by type. The resulting plans must be equivalent.
 Fixtures cover Unicode, templates, checks, moved/removed blocks, and Terraform
