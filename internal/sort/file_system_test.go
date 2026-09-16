@@ -40,7 +40,11 @@ func TestGetFilesFromTarget(t *testing.T) {
 		if err != nil {
 			log.WithError(err).Errorln("could not create file")
 		}
-		defer foo.Close()
+		defer func() {
+			if err := foo.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
 
 		// Get files from target
 		result, err := s.getFilesFromTarget(testDir)
@@ -66,7 +70,11 @@ func TestGetFilesFromTarget(t *testing.T) {
 		if err != nil {
 			log.WithError(err).Errorln("could not create file")
 		}
-		defer bar.Close()
+		defer func() {
+			if err := bar.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
 
 		// Get files from target
 		result, err := s.getFilesFromTarget(filepath.Join(testDir, testFiles[1]))
@@ -92,19 +100,31 @@ func TestGetFilesFromTarget(t *testing.T) {
 		if err != nil {
 			log.WithError(err).Errorln("could not create file")
 		}
-		defer foo.Close()
+		defer func() {
+			if err := foo.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
 
 		bar, err := os.Create(filepath.Join(testDir, testFiles[1]))
 		if err != nil {
 			log.WithError(err).Errorln("could not create file")
 		}
-		defer bar.Close()
+		defer func() {
+			if err := bar.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
 
 		baz, err := os.Create(filepath.Join(testDir, testFiles[2]))
 		if err != nil {
 			log.WithError(err).Errorln("could not create file")
 		}
-		defer baz.Close()
+		defer func() {
+			if err := baz.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
 
 		// Get files from target
 		result, err := s.getFilesFromTarget(testDir)
@@ -173,7 +193,11 @@ func TestGetFilesInFolder(t *testing.T) {
 		if err != nil {
 			log.WithError(err).Errorln("could not create file")
 		}
-		defer foo.Close()
+		defer func() {
+			if err := foo.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
 
 		// Get files from target
 		result, err := s.getFilesInFolder(testDir)
@@ -198,19 +222,31 @@ func TestGetFilesInFolder(t *testing.T) {
 		if err != nil {
 			log.WithError(err).Errorln("could not create file")
 		}
-		defer foo.Close()
+		defer func() {
+			if err := foo.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
 
 		bar, err := os.Create(filepath.Join(testDir, testFiles[1]))
 		if err != nil {
 			log.WithError(err).Errorln("could not create file")
 		}
-		defer bar.Close()
+		defer func() {
+			if err := bar.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
 
 		baz, err := os.Create(filepath.Join(testDir, testFiles[2]))
 		if err != nil {
 			log.WithError(err).Errorln("could not create file")
 		}
-		defer baz.Close()
+		defer func() {
+			if err := baz.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
 
 		// Get files from target
 		result, err := s.getFilesInFolder(testDir)

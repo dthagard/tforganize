@@ -170,7 +170,9 @@ func (s *Sorter) getLinesFromFile(filename string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	// Read errors are reported by the scanner; closing a read-only handle
+	// cannot affect the content already read.
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(make([]byte, 0, bufio.MaxScanTokenSize), 1<<20) // 1 MB max line length
@@ -190,9 +192,9 @@ func (s *Sorter) getLinesFromFile(filename string) ([]string, error) {
 	return lines, nil
 }
 
-// cacheLinesFromBytes splits raw content into lines and stores them in the
-// lines cache under the given filename.
-func (s *Sorter) cacheLinesFromBytes(content []byte, filename string) {
+// cacheLinesFromBytes splits raw content into lines, stores them in the
+// lines cache under the given filename, and returns the cached lines.
+func (s *Sorter) cacheLinesFromBytes(content []byte, filename string) []string {
 	lines := strings.Split(string(content), "\n")
 	if len(lines) > 0 && lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1]
@@ -203,6 +205,7 @@ func (s *Sorter) cacheLinesFromBytes(content []byte, filename string) {
 		s.linesCache[abs] = lines
 	}
 	s.mu.Unlock()
+	return lines
 }
 
 // getFileNameFromPath returns the filename from a path.
@@ -268,12 +271,15 @@ func (s *Sorter) writeFile(filename string, fileBytes []byte) error {
 	if err != nil {
 		return fmt.Errorf("could not create the file: %w", err)
 	}
-	// remember to close the file
-	defer f.Close()
 
 	log.Debugln("Writing to file...")
 	if _, err = f.Write(fileBytes); err != nil {
+		// Preserve the write error if closing the failed output also fails.
+		_ = f.Close()
 		return fmt.Errorf("could not write to the file: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("could not close the file: %w", err)
 	}
 	log.Debugln("Done writing to file.")
 

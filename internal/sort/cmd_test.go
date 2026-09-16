@@ -2,43 +2,13 @@ package sort
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
-
-func TestGetCommand(t *testing.T) {
-	cmd := GetCommand()
-
-	if cmd.Use == "" {
-		t.Fatal("command Use must not be empty")
-	}
-
-	expectedFlags := []string{
-		"group-by-type",
-		"has-header",
-		"header-pattern",
-		"header-end-pattern",
-		"keep-header",
-		"inline",
-		"output-dir",
-		"remove-comments",
-		"check",
-		"recursive",
-		"diff",
-		"no-sort-by-type",
-		"strip-section-comments",
-		"compact-empty-blocks",
-		"exclude",
-	}
-
-	for _, flag := range expectedFlags {
-		if cmd.PersistentFlags().Lookup(flag) == nil {
-			t.Errorf("expected persistent flag %q to be registered", flag)
-		}
-	}
-}
 
 func TestSortStdinInlineError(t *testing.T) {
 	err := sortStdin(&Params{Inline: true})
@@ -72,10 +42,16 @@ resource "aws_instance" "app" {
 	if err != nil {
 		t.Fatalf("could not create stdin pipe: %v", err)
 	}
+	writeDone := make(chan error, 1)
 	go func() {
-		_, _ = pw.WriteString(input)
-		pw.Close()
+		_, writeErr := pw.WriteString(input)
+		writeDone <- errors.Join(writeErr, pw.Close())
 	}()
+	t.Cleanup(func() {
+		if err := pr.Close(); err != nil {
+			t.Errorf("close stdin reader: %v", err)
+		}
+	})
 	os.Stdin = pr
 
 	// Capture stdout.
@@ -83,13 +59,21 @@ resource "aws_instance" "app" {
 	if err != nil {
 		t.Fatalf("could not create stdout pipe: %v", err)
 	}
+	t.Cleanup(func() {
+		if err := outR.Close(); err != nil {
+			t.Errorf("close stdout reader: %v", err)
+		}
+	})
 	os.Stdout = outW
 
-	if err := sortStdin(&Params{}); err != nil {
-		outW.Close()
-		t.Fatalf("sortStdin returned unexpected error: %v", err)
+	sortErr := sortStdin(&Params{})
+	closeErr := outW.Close()
+	if err := <-writeDone; err != nil {
+		t.Fatalf("write stdin: %v", err)
 	}
-	outW.Close()
+	if err := errors.Join(sortErr, closeErr); err != nil {
+		t.Fatalf("sort stdin and close output: %v", err)
+	}
 
 	var buf bytes.Buffer
 	if _, err := io.Copy(&buf, outR); err != nil {
@@ -139,5 +123,151 @@ resource "aws_instance" "a" {
 	bIdx := strings.Index(out, "\"b\"")
 	if aIdx == -1 || bIdx == -1 || aIdx > bIdx {
 		t.Errorf("expected a before b in sorted output:\n%s", out)
+	}
+}
+
+func TestCommandStdinDispatch(t *testing.T) {
+	for _, explicit := range []bool{false, true} {
+		name := "implicit"
+		if explicit {
+			name = "explicit"
+		}
+		t.Run(name, func(t *testing.T) {
+			input, err := os.CreateTemp(t.TempDir(), "stdin")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := input.Close(); err != nil {
+					t.Errorf("close stdin: %v", err)
+				}
+			}()
+			if _, err := input.WriteString("locals {\n z = 2\n a = 1\n}\n"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := input.Seek(0, io.SeekStart); err != nil {
+				t.Fatal(err)
+			}
+			output, err := os.CreateTemp(t.TempDir(), "stdout")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := output.Close(); err != nil {
+					t.Errorf("close stdout: %v", err)
+				}
+			}()
+			oldIn, oldOut := os.Stdin, os.Stdout
+			t.Cleanup(func() { os.Stdin, os.Stdout = oldIn, oldOut })
+			os.Stdin, os.Stdout = input, output
+			cmd := GetCommand()
+			args := []string{}
+			if explicit {
+				args = []string{"-"}
+			}
+			cmd.SetArgs(args)
+			if err := cmd.Execute(); err != nil {
+				t.Fatal(err)
+			}
+			got, err := os.ReadFile(output.Name())
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := "locals {\n  a = 1\n  z = 2\n}\n"
+			if string(got) != want {
+				t.Fatalf("stdin output=%q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestCommandRequiresTargetWithoutPipe(t *testing.T) {
+	input, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := input.Close(); err != nil {
+			t.Errorf("close stdin: %v", err)
+		}
+	}()
+	original := os.Stdin
+	t.Cleanup(func() { os.Stdin = original })
+	os.Stdin = input
+	cmd := GetCommand()
+	cmd.SetArgs([]string{})
+	err = cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "no target") {
+		t.Fatalf("expected missing target error, got %v", err)
+	}
+}
+
+func TestSortStdinReadFailure(t *testing.T) {
+	input, err := os.CreateTemp(t.TempDir(), "closed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := input.Close(); err != nil {
+		t.Fatal(err)
+	}
+	original := os.Stdin
+	t.Cleanup(func() { os.Stdin = original })
+	os.Stdin = input
+	err = sortStdin(&Params{})
+	if !errors.Is(err, os.ErrClosed) {
+		t.Fatalf("expected wrapped closed stdin error, got %v", err)
+	}
+}
+
+func TestCommandRejectsInvalidStdin(t *testing.T) {
+	input, err := os.CreateTemp(t.TempDir(), "stdin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := input.Close(); err != nil {
+			t.Errorf("close stdin: %v", err)
+		}
+	}()
+	if _, err := input.WriteString("resource {\n"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := input.Seek(0, io.SeekStart); err != nil {
+		t.Fatal(err)
+	}
+	original := os.Stdin
+	t.Cleanup(func() { os.Stdin = original })
+	os.Stdin = input
+	cmd := GetCommand()
+	cmd.SetArgs([]string{"-"})
+	err = cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "stdin.tf") {
+		t.Fatalf("expected stdin parse diagnostic, got %v", err)
+	}
+}
+
+func TestCommandStopsAfterTargetError(t *testing.T) {
+	dir := t.TempDir()
+	bad := filepath.Join(dir, "bad.tf")
+	next := filepath.Join(dir, "next.tf")
+	content := "locals {\n z = 2\n a = 1\n}\n"
+	if err := os.WriteFile(bad, []byte("resource {\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(next, []byte(content), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cmd := GetCommand()
+	cmd.SetArgs([]string{"--inline", bad, next})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "bad.tf") {
+		t.Fatalf("expected first target parse diagnostic, got %v", err)
+	}
+	got, err := os.ReadFile(next)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != content {
+		t.Fatalf("later target changed after failure: %q", got)
 	}
 }

@@ -7,18 +7,10 @@ import (
 	"regexp"
 	"strings"
 
-	hcl "github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	hclsyntax "github.com/hashicorp/hcl/v2/hclsyntax"
 	log "github.com/sirupsen/logrus"
 )
-
-// hclParseFn is the function used to parse raw HCL bytes into an hcl.File.
-// It is a package-level variable so tests can replace it with a stub that
-// returns a non-hclsyntax body, exercising the type-assertion error path.
-var hclParseFn = func(content []byte, filename string) (*hcl.File, hcl.Diagnostics) {
-	return hclparse.NewParser().ParseHCL(content, filename)
-}
 
 // parseHclFile reads an HCL file from the given path and returns the body of the file.
 func (s *Sorter) parseHclFile(path string) (*hclsyntax.Body, error) {
@@ -31,17 +23,14 @@ func (s *Sorter) parseHclFile(path string) (*hclsyntax.Body, error) {
 	}
 
 	// Parse the HCL content
-	file, diag := hclParseFn(hclContent, path)
+	file, diag := hclparse.NewParser().ParseHCL(hclContent, path)
 	if diag.HasErrors() {
 		return nil, fmt.Errorf("failed to parse HCL: %s", diag.Error())
 	}
 	log.WithField("file", file).Debugln("Got back file from parser.ParseHCL")
 
-	// Get the body of the HCL file
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		return nil, fmt.Errorf("unexpected HCL body type %T: expected *hclsyntax.Body", file.Body)
-	}
+	// ParseHCL always returns a native-syntax body.
+	body := file.Body.(*hclsyntax.Body)
 
 	return body, nil
 }
@@ -51,7 +40,7 @@ func (s *Sorter) parseHclBytes(content []byte, filename string) (*hclsyntax.Body
 	log.WithField("filename", filename).Traceln("Starting parseHclBytes")
 
 	// Parse the HCL content
-	file, diag := hclParseFn(content, filename)
+	file, diag := hclparse.NewParser().ParseHCL(content, filename)
 	if diag.HasErrors() {
 		return nil, fmt.Errorf("failed to parse HCL: %s", diag.Error())
 	}
@@ -196,13 +185,18 @@ func (s *Sorter) detectFileHeader(filename string) error {
 		return err
 	}
 
+	s.detectHeaderInLines(lines, filename)
+	return nil
+}
+
+// detectHeaderInLines records a header without reading the filesystem.
+func (s *Sorter) detectHeaderInLines(lines []string, filename string) {
 	header := s.findHeaderInLines(lines)
 	if header != "" {
 		s.detectedHeadersMu.Lock()
 		s.detectedHeaders[filename] = header
 		s.detectedHeadersMu.Unlock()
 	}
-	return nil
 }
 
 // findHeaderInLines extracts a header comment block from the top of a file's

@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/apparentlymart/go-textseg/v15/textseg"
+	"github.com/hashicorp/hcl/v2/hclparse"
 	hclsyntax "github.com/hashicorp/hcl/v2/hclsyntax"
 	hclwrite "github.com/hashicorp/hcl/v2/hclwrite"
 	log "github.com/sirupsen/logrus"
@@ -88,13 +90,11 @@ func (s *Sorter) sortFile(path string) (map[string][]byte, error) {
 func (s *Sorter) sortFileBytes(content []byte, filename string) (map[string][]byte, error) {
 	log.WithField("filename", filename).Traceln("Starting sortFileBytes")
 
-	s.cacheLinesFromBytes(content, filename)
+	lines := s.cacheLinesFromBytes(content, filename)
 
 	// Detect the file header before sorting.
 	if s.params.HasHeader {
-		if err := s.detectFileHeader(filename); err != nil {
-			return nil, fmt.Errorf("could not detect file header: %w", err)
-		}
+		s.detectHeaderInLines(lines, filename)
 	}
 
 	body, err := s.parseHclBytes(content, filename)
@@ -130,7 +130,7 @@ func (s *Sorter) sortBody(body *hclsyntax.Body, inputFilename string) (map[strin
 		}
 
 		// Validate the formatted output is still valid HCL.
-		if _, diag := hclParseFn(formatted, k); diag.HasErrors() {
+		if _, diag := hclparse.NewParser().ParseHCL(formatted, k); diag.HasErrors() {
 			return nil, fmt.Errorf("sorted output for %s is not valid HCL: %s", k, diag.Error())
 		}
 
@@ -271,9 +271,10 @@ func getSortedBlockKeys(block *hclsyntax.Block) map[int][]string {
 			key2 := keys[0][j]
 
 			for _, arg := range metaArgs[0] {
-				if arg == key1 {
+				switch arg {
+				case key1:
 					return true
-				} else if arg == key2 {
+				case key2:
 					return false
 				}
 			}
@@ -509,7 +510,7 @@ func (s *Sorter) getLineSlice(line string, startLine, endLine, currentLine, star
 	if currentLine == startLine {
 		log.Debugln("Current line is starting line.")
 		// Truncate the line to the starting column
-		line = line[startCol-1:]
+		line = line[hclColumnOffset(line, startCol):]
 	}
 
 	if s.params.RemoveComments {
@@ -520,13 +521,26 @@ func (s *Sorter) getLineSlice(line string, startLine, endLine, currentLine, star
 			log.Debugln("Truncating line to end column.")
 			if startLine == endLine {
 				// Truncate the line from the ending column
-				line = line[:endCol-startCol]
+				line = line[:hclColumnOffset(line, endCol-startCol+1)]
 			} else {
 				// Truncate the line from the ending column
-				line = line[:endCol-1]
+				line = line[:hclColumnOffset(line, endCol)]
 			}
 		}
 	}
 
 	return line
+}
+
+// hclColumnOffset converts HCL's one-based grapheme column to a byte offset.
+// The line and column come from successfully parsed HCL, so every scanned
+// cluster is valid and the column is on a cluster boundary.
+func hclColumnOffset(line string, column int) int {
+	data := []byte(line)
+	offset := 0
+	for i := 1; i < column; i++ {
+		advance, _, _ := textseg.ScanGraphemeClusters(data[offset:], true)
+		offset += advance
+	}
+	return offset
 }

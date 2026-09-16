@@ -6,7 +6,7 @@
 # You may obtain a copy of the License at the LICENSE file in
 # the root directory of this source tree.
 
-FROM golang:1.23-alpine AS builder
+FROM golang:1.27.1-alpine3.24 AS builder
 
 ARG VERSION=dev
 RUN apk add --update --no-cache make git
@@ -18,7 +18,7 @@ RUN VERSION=${VERSION} make all
 
 ################
 
-FROM alpine:3.19.1
+FROM alpine:3.24.1
 
 RUN apk add --no-cache git
 

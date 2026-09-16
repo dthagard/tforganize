@@ -1,6 +1,7 @@
 package version
 
 import (
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -14,6 +15,7 @@ func TestVersionCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not create pipe: %v", err)
 	}
+	t.Cleanup(func() { os.Stdout = oldStdout })
 	os.Stdout = w
 
 	cmd := GetCommand()
@@ -23,13 +25,19 @@ func TestVersionCommand(t *testing.T) {
 		t.Fatalf("version command returned error: %v", err)
 	}
 
-	w.Close()
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = oldStdout
 
-	buf := make([]byte, 1024)
-	n, _ := r.Read(buf)
-	r.Close()
-	output := string(buf[:n])
+	buf, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output := string(buf)
 
 	if !strings.Contains(output, info.AppVersion) {
 		t.Errorf("version output %q does not contain AppVersion %q", output, info.AppVersion)

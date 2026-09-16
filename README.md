@@ -49,7 +49,7 @@ brew install tforganize
 
 ### Go
 
-> Requires Go **1.23+**
+> Requires Go **1.27.1+**
 
 ```bash
 go install github.com/dthagard/tforganize@latest
@@ -425,10 +425,35 @@ docker run --rm -v "$(pwd)":/tforganize -w /tforganize   ghcr.io/dthagard/tforga
 ```
 
 
+## Terraform compatibility
+
+CI checks Terraform **1.15.9** and **1.16.2**. Provider-free fixtures are
+initialized, validated, and planned before sorting, after recursive inline
+sorting, and after grouping by type. The resulting plans must be equivalent.
+Fixtures cover Unicode, templates, checks, moved/removed blocks, and Terraform
+1.16 store blocks, ephemeral inputs, and child-module imports.
+
+Provider-dependent action and ephemeral-resource declarations receive syntax
+and expression-preservation checks only. No resources or actions are applied.
+
+Run the compatibility check with Bash, Terraform, and `jq` installed:
+
+```bash
+make build
+bash scripts/test-terraform-compatibility.sh
+# Select another installed Terraform binary:
+TERRAFORM=/path/to/terraform bash scripts/test-terraform-compatibility.sh
+```
+
 ## Contributing & support
 
 - Issues / ideas → [GitHub Issues](https://github.com/dthagard/tforganize/issues)
-- PRs welcome — please run `go test ./...` and include a short description of the behavior change.
+- PRs welcome — run `make test_coverage`, `go test -race ./...`, and `make lint`, and describe the behavior change.
 - Licensed under MIT.
+
+`make test_coverage` requires exact 100% statement coverage across all first-party
+Go packages, including the CLI entry point. It merges duplicate profile blocks
+before rejecting uncovered statements; rounded percentages are not sufficient.
+`internal/info` contains declarations only, with no executable statements.
 
 Happy organizing!

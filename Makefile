@@ -8,8 +8,6 @@ LDFLAGS := -X github.com/dthagard/tforganize/internal/info.AppVersion=$(VERSION)
 GOCMD = go
 GOBUILD = $(GOCMD) build
 GOCLEAN = $(GOCMD) clean
-GOCOMPILE = $(GOTOOL) compile
-GOGET = $(GOCMD) get
 GOINSTALL = $(GOCMD) install
 GOTEST = $(GOCMD) test
 GOTOOL = $(GOCMD) tool
@@ -23,7 +21,7 @@ default: all
 
 # Build the application
 .PHONY: all
-all: configure build
+all: build
 
 # Build target
 .PHONY: build
@@ -38,15 +36,13 @@ clean:
 
 # Configure the development environment
 .PHONY: configure
-configure:
-	$(GOCMD) mod tidy
-	$(GOINSTALL) github.com/githubnemo/CompileDaemon@latest
-	$(GOGET) github.com/dthagard/tforganize
+configure: dep
+	$(GOCMD) mod verify
 
 # Cache the dependencies locally
 .PHONY: dep
 dep:
-	go mod download
+	$(GOCMD) mod download
 
 # Install target
 .PHONY: install
@@ -68,10 +64,29 @@ test:
 lint:
 	golangci-lint run ./...
 
-# Generate the test coverage report
+# Require every first-party statement to be covered, including the entry point.
 .PHONY: test_coverage
 test_coverage:
-	$(GOTEST) ./... -coverprofile=coverage.out
+	$(GOTEST) ./... -coverpkg=./... -coverprofile=coverage.out
+	$(GOTOOL) cover -func=coverage.out
+	@awk 'NR > 1 { statements[$$1] = $$2; hits[$$1] += $$3 } \
+		END { \
+			for (block in statements) { \
+				total += statements[block]; \
+				if (statements[block] > 0 && hits[block] == 0) { \
+					print "Uncovered block: " block; uncovered += statements[block]; \
+				} \
+			} \
+			if (total == 0 || uncovered > 0) { \
+				printf "Coverage gate failed: %d of %d statements uncovered\n", uncovered, total; exit 1; \
+			} \
+			printf "Coverage gate passed: all %d statements covered\n", total; \
+		}' coverage.out
+
+# Install the optional file watcher separately from normal builds.
+.PHONY: configure_watch
+configure_watch:
+	$(GOINSTALL) github.com/githubnemo/CompileDaemon@v1.4.0
 
 # Watch the target files and rebuild on change
 .PHONY: watch
