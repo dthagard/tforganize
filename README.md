@@ -433,6 +433,12 @@ sorting, and after grouping by type. The resulting plans must be equivalent.
 Fixtures cover Unicode, templates, checks, moved/removed blocks, and Terraform
 1.16 store blocks, ephemeral inputs, and child-module imports.
 
+IAM-style JSON fixtures cover `jsonencode`, quoted JSON, and JSON heredocs.
+Checks compare evaluated policy values, including nested conditions, statement
+order, escaped policy variables, Unicode, and literal heredoc contents. Comment
+removal and empty-block compaction must not alter strings. These fixtures also
+run with alphabetical sorting, section stripping, and combined transformations.
+
 Provider-dependent action and ephemeral-resource declarations receive syntax
 and expression-preservation checks only. No resources or actions are applied.
 

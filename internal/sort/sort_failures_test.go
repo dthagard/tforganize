@@ -70,6 +70,29 @@ func TestSortBodySourceReadFailures(t *testing.T) {
 	}
 }
 
+func TestSortBodyRejectsSourceChangedAfterParsing(t *testing.T) {
+	mem := afero.NewMemMapFs()
+	const filename = "/changed.tf"
+	if err := afero.WriteFile(mem, filename, []byte("locals {\n  value = 1\n}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	s := NewSorter(&Params{RemoveComments: true}, mem)
+	body, err := s.parseHclFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The source can change before its attribute text is read. Keep the same
+	// ranges but replace the expression with an invalid HCL character.
+	if err := afero.WriteFile(mem, filename, []byte("locals {\n  value = @\n}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.sortBody(body, filename)
+	if got != nil || err == nil || !strings.Contains(err.Error(), "changed.tf") {
+		t.Fatalf("changed source must fail without output: output = %v, error = %v", got, err)
+	}
+}
+
 func TestSortBytesRejectsInvalidPreservedHeader(t *testing.T) {
 	got, err := SortBytes([]byte("locals {}\n"), "main.tf", &Params{
 		KeepHeader:    true,

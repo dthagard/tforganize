@@ -13,7 +13,7 @@ mkdir -p "$HOME"
 printf '{}\n' > "$work/config.yaml"
 
 version="$("$terraform" version -json | jq -r .terraform_version)"
-fixtures=(modern)
+fixtures=(modern iam)
 case "$version" in
   1.15.*) ;;
   *) fixtures+=(latest) ;;
@@ -43,6 +43,29 @@ for fixture in "${fixtures[@]}"; do
     "$terraform" show -json grouped.plan | jq -S '{planned_values, resource_changes, output_changes}' > grouped.json
     diff -u "$dir/before.json" grouped.json
   )
+  if [[ "$fixture" == iam ]]; then
+    # Exercise transformations independently against the original policy values.
+    for mode in alphabetical comments sections compact combined; do
+      mode_dir="$work/iam-$mode"
+      cp -R "$root/testdata/terraform/iam" "$mode_dir"
+      case "$mode" in
+        alphabetical) flags=(--no-sort-by-type) ;;
+        comments) flags=(--remove-comments) ;;
+        sections) flags=(--strip-section-comments) ;;
+        compact) flags=(--compact-empty-blocks) ;;
+        combined) flags=(--remove-comments --compact-empty-blocks --strip-section-comments) ;;
+      esac
+      (
+        cd "$mode_dir"
+        "$organizer" --config "$work/config.yaml" sort --inline "${flags[@]}" .
+        "$terraform" init -backend=false -input=false -no-color
+        "$terraform" validate -no-color
+        "$terraform" plan -input=false -refresh=false -lock=false -out=policy.plan -no-color
+        "$terraform" show -json policy.plan | jq -S '{planned_values, resource_changes, output_changes}' > policy.json
+        diff -u "$dir/before.json" policy.json
+      )
+    done
+  fi
 done
 
 # fmt parses provider-dependent syntax without installing or invoking providers.

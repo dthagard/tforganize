@@ -3,11 +3,11 @@ package sort
 import (
 	"fmt"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/apparentlymart/go-textseg/v15/textseg"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	hclsyntax "github.com/hashicorp/hcl/v2/hclsyntax"
 	hclwrite "github.com/hashicorp/hcl/v2/hclwrite"
@@ -118,16 +118,17 @@ func (s *Sorter) sortBody(body *hclsyntax.Body, inputFilename string) (map[strin
 	output := map[string][]byte{}
 	for k, v := range sortedFileBytes {
 		buffer := v
+		if s.params.RemoveComments {
+			buffer, err = removeHCLComments(buffer, k)
+			if err != nil {
+				return nil, err
+			}
+		}
 		if s.params.KeepHeader {
 			log.Debugln("Adding header...")
 			buffer = s.addHeader(buffer, inputFilename)
 		}
 		formatted := hclwrite.Format(buffer)
-
-		if s.params.CompactEmptyBlocks {
-			re := regexp.MustCompile(`(?m)(\S) \{\s*\n\}\n`)
-			formatted = re.ReplaceAll(formatted, []byte("$1 {}\n"))
-		}
 
 		// Validate the formatted output is still valid HCL.
 		if _, diag := hclparse.NewParser().ParseHCL(formatted, k); diag.HasErrors() {
@@ -189,6 +190,10 @@ func (s *Sorter) getSortedBlockBytes(block *hclsyntax.Block) ([]byte, error) {
 	results, err := s.getBlockOpeningBytes(block)
 	if err != nil {
 		return nil, fmt.Errorf("could not get block opening bytes: %w", err)
+	}
+
+	if s.params.CompactEmptyBlocks && len(block.Body.Attributes) == 0 && len(block.Body.Blocks) == 0 {
+		return append(results, '}', '\n'), nil
 	}
 
 	// Create buffer for the block body
@@ -332,7 +337,10 @@ func (s *Sorter) getBlockOpeningBytes(block *hclsyntax.Block) ([]byte, error) {
 	}
 
 	// Append the block opening
-	output = append(output, []byte(" {\n")...)
+	output = append(output, []byte(" {")...)
+	if !s.params.CompactEmptyBlocks || len(block.Body.Attributes) > 0 || len(block.Body.Blocks) > 0 {
+		output = append(output, '\n')
+	}
 
 	return output, nil
 }
@@ -492,10 +500,8 @@ func (s *Sorter) readNodeFromFile(filename string, startLine, startCol, endLine,
 		// Grab the correct slice of the line
 		lineSlice := s.getLineSlice(line, startLine, endLine, i, startCol, endCol)
 
-		// Append the line slice to the buffer
-		if len(lineSlice) > 0 {
-			output = append(output, lineSlice)
-		}
+		// Empty lines inside expressions, especially heredocs, are content.
+		output = append(output, lineSlice)
 	}
 
 	log.WithField("output", output).Debugln("Returning output")
@@ -514,10 +520,7 @@ func (s *Sorter) getLineSlice(line string, startLine, endLine, currentLine, star
 	}
 
 	if s.params.RemoveComments {
-		if isStartOfComment(line) {
-			log.Debugln("Removing comment line.")
-			line = ""
-		} else if currentLine == endLine { // Using the node endCol will truncate comments
+		if currentLine == endLine {
 			log.Debugln("Truncating line to end column.")
 			if startLine == endLine {
 				// Truncate the line from the ending column
@@ -543,4 +546,39 @@ func hclColumnOffset(line string, column int) int {
 		offset += advance
 	}
 	return offset
+}
+
+// removeHCLComments strips only lexer-recognized comments, leaving literal
+// strings and template payloads untouched. Reuse the output buffer in place.
+func removeHCLComments(content []byte, filename string) ([]byte, error) {
+	tokens, diags := hclsyntax.LexConfig(content, filename, hcl.InitialPos)
+	if diags.HasErrors() {
+		return nil, fmt.Errorf("could not lex sorted output for %s: %s", filename, diags.Error())
+	}
+
+	read, written := 0, 0
+	for _, token := range tokens {
+		if token.Type != hclsyntax.TokenComment {
+			continue
+		}
+		start, end := token.Range.Start.Byte, token.Range.End.Byte
+		// Block-comment newlines are not HCL newline tokens. A line comment,
+		// on the other hand, includes its terminating newline.
+		lineComment := content[start] != '/'
+		if content[start] == '/' {
+			lineComment = content[start+1] == '/'
+		}
+		newline := lineComment && content[end-1] == '\n'
+		written += copy(content[written:], content[read:start])
+		// Comments can separate otherwise adjacent tokens (e.g. for/*...*/x).
+		content[written] = ' '
+		written++
+		if newline {
+			content[written] = '\n'
+			written++
+		}
+		read = end
+	}
+	written += copy(content[written:], content[read:])
+	return content[:written], nil
 }
