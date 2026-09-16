@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dthagard/tforganize/internal/info"
-	"github.com/dthagard/tforganize/internal/sort"
-	"github.com/dthagard/tforganize/internal/version"
+	"github.com/dthagard/tforganize/v2/internal/info"
+	"github.com/dthagard/tforganize/v2/internal/sort"
+	"github.com/dthagard/tforganize/v2/internal/version"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"

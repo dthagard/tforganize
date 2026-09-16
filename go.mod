@@ -1,4 +1,4 @@
-module github.com/dthagard/tforganize
+module github.com/dthagard/tforganize/v2
 
 go 1.27.1
 

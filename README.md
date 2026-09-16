@@ -52,8 +52,10 @@ brew install tforganize
 > Requires Go **1.27.1+**
 
 ```bash
-go install github.com/dthagard/tforganize@latest
+go install github.com/dthagard/tforganize/v2@latest
 ```
+
+The `/v2` suffix is required; the unversioned module path installs the old v1 release.
 
 ### Docker
 
