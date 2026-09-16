@@ -32,9 +32,9 @@ type RootCommand struct {
 func NewRootCommand() *RootCommand {
 	rootCommand := &RootCommand{
 		baseCmd: &cobra.Command{
-			PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 				toggleDebug(cmd, args)
-				initConfig(cmd, args)
+				return initConfig(cmd, args)
 			},
 			Short: "tforganize is a tool for sorting Terraform files and folders.",
 		},
@@ -63,16 +63,21 @@ func (rc *RootCommand) registerSubCommands() {
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func (rc *RootCommand) Execute() {
+	rc.execute(os.Exit)
+}
+
+func (rc *RootCommand) execute(exit func(int)) {
 	err := rc.baseCmd.Execute()
 	if err != nil {
 		if errors.Is(err, sort.ErrCheckFailed) {
-			os.Exit(2)
+			exit(2)
+			return
 		}
-		os.Exit(1)
+		exit(1)
 	}
 }
 
-func initConfig(cmd *cobra.Command, args []string) {
+func initConfig(cmd *cobra.Command, args []string) error {
 	log.Traceln("Starting initConfig()")
 
 	v := viper.New()
@@ -82,11 +87,15 @@ func initConfig(cmd *cobra.Command, args []string) {
 		v.SetConfigFile(config)
 	} else {
 		project, err := projectConfigDir()
-		cobra.CheckErr(err)
+		if err != nil {
+			return err
+		}
 
 		// Find home directory.
 		home, err := os.UserHomeDir()
-		cobra.CheckErr(err)
+		if err != nil {
+			return err
+		}
 
 		// Select the project config before home; do not merge the files.
 		v.AddConfigPath(project)
@@ -99,7 +108,7 @@ func initConfig(cmd *cobra.Command, args []string) {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			log.Debugln("No config file found")
 		} else {
-			log.WithError(err).Fatalln("Error reading config file")
+			return fmt.Errorf("error reading config file: %w", err)
 		}
 	} else {
 		log.WithField("configFile", v.ConfigFileUsed()).Debugln("Found config file")
@@ -125,6 +134,7 @@ func initConfig(cmd *cobra.Command, args []string) {
 
 	v.SetDefault("author", fmt.Sprintf("%s <%s>", info.AppRepoOwner, info.AppRepoOwnerEmail))
 	v.SetDefault("license", info.AppLicense)
+	return nil
 }
 
 // projectConfigDir finds the nearest Git root, or uses cwd outside Git.

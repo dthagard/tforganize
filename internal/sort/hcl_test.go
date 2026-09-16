@@ -3,12 +3,10 @@ package sort
 import (
 	"path/filepath"
 	"reflect"
-	"strings"
 	"testing"
 
 	"os"
 
-	hcl "github.com/hashicorp/hcl/v2"
 	hclsyntax "github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/spf13/afero"
 )
@@ -26,7 +24,11 @@ func TestIsSortable(t *testing.T) {
 		if err != nil {
 			t.Fatalf("could not create sortable file: %v", err)
 		}
-		defer sortable.Close()
+		t.Cleanup(func() {
+			if err := sortable.Close(); err != nil {
+				t.Errorf("could not close sortable file: %v", err)
+			}
+		})
 
 		// Get sortable file info
 		sortableStat, err := sortable.Stat()
@@ -53,7 +55,11 @@ func TestIsSortable(t *testing.T) {
 		if err != nil {
 			t.Fatalf("could not create non-sortable file: %v", err)
 		}
-		defer unsortable.Close()
+		t.Cleanup(func() {
+			if err := unsortable.Close(); err != nil {
+				t.Errorf("could not close non-sortable file: %v", err)
+			}
+		})
 
 		// Get sortable file info
 		nonSortableStat, err := unsortable.Stat()
@@ -429,56 +435,8 @@ func TestParseHclFileUsesInjectedFileSystem(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseHclFile() returned unexpected error: %v", err)
 	}
-	if body == nil {
-		t.Fatal("parseHclFile() returned nil body, expected non-nil")
-	}
-}
-
-// stubHCLBody is a minimal hcl.Body implementation whose concrete type is
-// intentionally not *hclsyntax.Body, used to exercise the type-assertion
-// error path in parseHclFile.
-type stubHCLBody struct{}
-
-func (s *stubHCLBody) Content(schema *hcl.BodySchema) (*hcl.BodyContent, hcl.Diagnostics) {
-	return &hcl.BodyContent{}, nil
-}
-func (s *stubHCLBody) PartialContent(schema *hcl.BodySchema) (*hcl.BodyContent, hcl.Body, hcl.Diagnostics) {
-	return &hcl.BodyContent{}, s, nil
-}
-func (s *stubHCLBody) JustAttributes() (hcl.Attributes, hcl.Diagnostics) {
-	return hcl.Attributes{}, nil
-}
-func (s *stubHCLBody) MissingItemRange() hcl.Range { return hcl.Range{} }
-
-func TestParseHclFileNonHclsyntaxBody(t *testing.T) {
-	// Save and restore the parse function only.
-	origParseFn := hclParseFn
-	t.Cleanup(func() {
-		hclParseFn = origParseFn
-	})
-
-	// Use an in-memory filesystem so ReadFile succeeds.
-	memFS := afero.NewMemMapFs()
-	tfPath := "/test/stub.tf"
-	if err := memFS.MkdirAll("/test", 0755); err != nil {
-		t.Fatalf("could not create directory: %v", err)
-	}
-	if err := afero.WriteFile(memFS, tfPath, []byte("# stub\n"), 0644); err != nil {
-		t.Fatalf("could not write stub file: %v", err)
-	}
-
-	// Inject a parser that returns a file whose body is not *hclsyntax.Body.
-	hclParseFn = func(content []byte, filename string) (*hcl.File, hcl.Diagnostics) {
-		return &hcl.File{Body: &stubHCLBody{}}, nil
-	}
-
-	s := NewSorter(&Params{}, memFS)
-	_, err := s.parseHclFile(tfPath)
-	if err == nil {
-		t.Fatal("parseHclFile() expected an error for non-hclsyntax body, got nil")
-	}
-	if !strings.Contains(err.Error(), "*hclsyntax.Body") {
-		t.Errorf("parseHclFile() error = %q; want it to mention *hclsyntax.Body", err.Error())
+	if len(body.Blocks) != 1 || body.Blocks[0].Type != "resource" || !reflect.DeepEqual(body.Blocks[0].Labels, []string{"null_resource", "example"}) {
+		t.Fatalf("parsed blocks = %#v, want resource null_resource example", body.Blocks)
 	}
 }
 

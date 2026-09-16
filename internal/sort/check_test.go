@@ -133,8 +133,12 @@ func TestCheckModeUnsortedFile(t *testing.T) {
 
 func TestCheckModeStderrOutput(t *testing.T) {
 	memFS := afero.NewMemMapFs()
-	_ = memFS.MkdirAll("/check", 0755)
-	_ = afero.WriteFile(memFS, "/check/main.tf", unsortedTwoBlocks, 0644)
+	if err := memFS.MkdirAll("/check", 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := afero.WriteFile(memFS, "/check/main.tf", unsortedTwoBlocks, 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	// Capture stderr.
 	oldStderr := os.Stderr
@@ -142,14 +146,26 @@ func TestCheckModeStderrOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not create pipe: %v", err)
 	}
+	t.Cleanup(func() { os.Stderr = oldStderr })
+	t.Cleanup(func() {
+		if err := r.Close(); err != nil {
+			t.Errorf("close stderr reader: %v", err)
+		}
+	})
 	os.Stderr = w
 
 	s := NewSorter(&Params{Check: true}, memFS)
-	_ = s.run("/check/main.tf")
-
-	w.Close()
+	runErr := s.run("/check/main.tf")
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if !errors.Is(runErr, ErrCheckFailed) {
+		t.Fatalf("expected check failure, got %v", runErr)
+	}
 	var buf bytes.Buffer
-	_, _ = io.Copy(&buf, r)
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatal(err)
+	}
 	os.Stderr = oldStderr
 
 	stderr := buf.String()

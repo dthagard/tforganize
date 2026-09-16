@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/spf13/afero"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // TestSortNilSettings verifies that Sort does not panic when settings is nil
