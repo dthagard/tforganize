@@ -1,14 +1,14 @@
 variable "example" {
-  description = "All five pre-meta args in reverse order"
   type        = string
+  description = "All five pre-meta args in reverse order"
   default     = "hello"
-  nullable    = false
   sensitive   = true
+  nullable    = false
 }
 
 variable "partial" {
-  description = "Only some pre-meta args present"
   type        = number
+  description = "Only some pre-meta args present"
   default     = 42
 }
 
