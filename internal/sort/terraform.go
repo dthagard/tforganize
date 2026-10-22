@@ -71,7 +71,7 @@ var (
 		},
 		"data": {
 			"pre":  []string{"count", "for_each", "provider"},
-			"post": []string{"provisioner", "depends_on"},
+			"post": []string{"lifecycle", "depends_on"},
 		},
 		"dynamic": {
 			"pre":  []string{"for_each"},
@@ -91,11 +91,11 @@ var (
 			"pre":  []string{"source", "version", "providers", "count", "for_each"},
 			"post": []string{"depends_on"},
 		},
-		// output block: https://developer.hashicorp.com/terraform/language/values/outputs
-		// description and value first, sensitive/precondition/depends_on last.
+		// output block: https://developer.hashicorp.com/terraform/language/style#outputs
+		// type, description, value, sensitive first; precondition/depends_on last.
 		"output": {
-			"pre":  []string{"description", "value"},
-			"post": []string{"sensitive", "precondition", "depends_on"},
+			"pre":  []string{"type", "description", "value", "sensitive"},
+			"post": []string{"precondition", "depends_on"},
 		},
 		// moved block: https://developer.hashicorp.com/terraform/language/modules/develop/refactoring
 		// Required: from, to.
@@ -109,16 +109,20 @@ var (
 			"pre":  []string{"from"},
 			"post": []string{"lifecycle"},
 		},
+		// resource block: https://developer.hashicorp.com/terraform/language/style#resource-order
+		// count/for_each, non-block arguments, block arguments, lifecycle, depends_on.
 		"resource": {
 			"pre":  []string{"count", "for_each", "provider"},
-			"post": []string{"provisioner", "lifecycle", "depends_on", "triggers_replace"},
+			"post": []string{"provisioner", "lifecycle", "depends_on"},
 		},
 		"terraform": {
 			"pre":  []string{"required_version", "required_providers"},
 			"post": []string{},
 		},
+		// variable block: https://developer.hashicorp.com/terraform/language/style#variables
+		// type, description, default, sensitive, then validation blocks.
 		"variable": {
-			"pre":  []string{"description", "type", "default", "nullable", "sensitive"},
+			"pre":  []string{"type", "description", "default", "sensitive", "nullable"},
 			"post": []string{"validation"},
 		},
 		"default": {

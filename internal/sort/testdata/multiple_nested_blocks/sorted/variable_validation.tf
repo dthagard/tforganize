@@ -1,6 +1,6 @@
 variable "instance_count" {
-  description = "Number of instances to create"
   type        = number
+  description = "Number of instances to create"
   default     = 1
 
   validation {

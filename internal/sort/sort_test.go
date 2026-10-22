@@ -182,6 +182,18 @@ func TestSortFile(t *testing.T) {
 		testSortFile(path, t)
 	})
 
+	/*********************************************************************/
+	// Regression test for issue #74: block bodies follow the Terraform
+	// style guide order: count/for_each, non-block arguments, block
+	// arguments, lifecycle, depends_on. Repeated provisioners keep source
+	// order, and output/data blocks follow their style guide order.
+	/*********************************************************************/
+
+	t.Run("style guide order", func(t *testing.T) {
+		path := filepath.Join(testDataDir, "style_guide_order")
+		testSortFile(path, t)
+	})
+
 	t.Run("module blocks", func(t *testing.T) {
 		path := filepath.Join(testDataDir, "module_blocks")
 		testSortFile(path, t)

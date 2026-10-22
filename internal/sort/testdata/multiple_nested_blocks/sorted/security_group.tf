@@ -1,5 +1,6 @@
 resource "aws_security_group" "example" {
   description = "Example security group"
+  name        = "example-sg"
 
   egress {
     cidr_blocks = ["0.0.0.0/0"]
@@ -35,6 +36,4 @@ resource "aws_security_group" "example" {
     protocol    = "tcp"
     to_port     = 22
   }
-
-  name = "example-sg"
 }

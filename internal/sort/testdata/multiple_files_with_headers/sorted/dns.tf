@@ -30,12 +30,11 @@ resource "google_dns_policy" "default_policy" {
   enable_inbound_forwarding = var.dns_enable_inbound_forwarding
   enable_logging            = var.dns_enable_logging
   name                      = "dp-${var.environment_code}-shared-base-default-policy"
+  project                   = var.project_id
 
   networks {
     network_url = module.main.network_self_link
   }
-
-  project = var.project_id
 }
 
 module "peering_zone" {

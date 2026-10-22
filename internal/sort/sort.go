@@ -3,6 +3,7 @@ package sort
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -201,7 +202,7 @@ func (s *Sorter) getSortedBlockBytes(block *hclsyntax.Block) ([]byte, error) {
 
 	// Write the block attributes and child blocks
 	log.WithFields(log.Fields{blockTypeLabel: block.Type, blockLabelsLabel: block.Labels}).Debugln("Looping keys for getBlockBodyBytes")
-	for i := 0; i < 3; i++ {
+	for i := range len(keys) {
 		log.WithFields(log.Fields{"i": i, "keys[i]": keys[i]}).Debugln("Found keys")
 		if len(keys[i]) > 0 {
 			log.WithFields(log.Fields{"i": i, "keys[i]": keys[i]}).Debugln("Using keys")
@@ -222,19 +223,20 @@ func (s *Sorter) getSortedBlockBytes(block *hclsyntax.Block) ([]byte, error) {
 	return results, nil
 }
 
-// getSortedBlockKeys returns a sorted map of the block attributes and child blocks
-// grouped into three separate categories:
-// 0. Pre-Meta Arguments
-// 1. Arguments
-// 2. Post-Meta Arguments
-// This is done to ensure that the arguments are sorted in the correct order.
-// See https://www.terraform.io/docs/configuration/syntax.html
+// getSortedBlockKeys returns the block attributes and child blocks grouped into
+// four categories, emitted in this order:
+// 0. Pre-meta arguments, in the order listed in metaArguments
+// 1. Non-block arguments (attributes), alphabetically
+// 2. Block arguments (nested blocks), alphabetically
+// 3. Post-meta arguments, in the order listed in metaArguments
+// This follows the Terraform style guide resource parameter order.
+// See https://developer.hashicorp.com/terraform/language/style#resource-order
 func getSortedBlockKeys(block *hclsyntax.Block) map[int][]string {
 	log.WithFields(log.Fields{blockTypeLabel: block.Type, blockLabelsLabel: block.Labels}).Traceln("Starting getSortedBlockKeys")
 
 	// Initialize the return map
 	keys := make(map[int][]string)
-	for i := 0; i < 3; i++ {
+	for i := range 4 {
 		keys[i] = []string{}
 	}
 
@@ -247,7 +249,7 @@ func getSortedBlockKeys(block *hclsyntax.Block) map[int][]string {
 			keys[0] = append(keys[0], k)
 			log.WithField("k", k).Debugln("Found pre-meta attribute")
 		} else if stringExists(metaArgs[1], k) {
-			keys[2] = append(keys[2], k)
+			keys[3] = append(keys[3], k)
 			log.WithField("k", k).Debugln("Found post-meta attribute")
 		} else {
 			keys[1] = append(keys[1], k)
@@ -255,45 +257,44 @@ func getSortedBlockKeys(block *hclsyntax.Block) map[int][]string {
 		}
 	}
 
-	// Categories the body blocks
+	// Categorize the body blocks
 	for _, b := range block.Body.Blocks {
 		if stringExists(metaArgs[0], b.Type) {
 			keys[0] = append(keys[0], formatBlockKey(b))
 			log.WithFields(log.Fields{blockTypeLabel: block.Type, blockLabelsLabel: block.Labels}).Debugln("Found pre-meta block")
 		} else if stringExists(metaArgs[1], b.Type) {
-			keys[2] = append(keys[2], formatBlockKey(b))
+			keys[3] = append(keys[3], formatBlockKey(b))
 			log.WithFields(log.Fields{blockTypeLabel: block.Type, blockLabelsLabel: block.Labels}).Debugln("Found post-meta block")
 		} else {
-			keys[1] = append(keys[1], formatBlockKey(b))
+			keys[2] = append(keys[2], formatBlockKey(b))
 			log.WithFields(log.Fields{blockTypeLabel: block.Type, blockLabelsLabel: block.Labels}).Debugln("Found normal block")
 		}
 	}
 
-	// Sort the pre-meta blocks and attributes by the order of the meta arguments
-	if len(keys[0]) > 0 {
-		sort.SliceStable(keys[0], func(i, j int) bool {
-			key1 := keys[0][i]
-			key2 := keys[0][j]
+	// Sort meta arguments by their position in the meta argument list. The sort
+	// is stable so repeated blocks (e.g. multiple provisioners) keep source order.
+	sortByMetaArgOrder(keys[0], metaArgs[0])
+	sortByMetaArgOrder(keys[3], metaArgs[1])
 
-			for _, arg := range metaArgs[0] {
-				switch arg {
-				case key1:
-					return true
-				case key2:
-					return false
-				}
-			}
-			return false
-		})
-	}
-
-	// Sort the post and non-meta blocks and attributes alphabetically
-	for i := 1; i < 3; i++ {
-		sort.Strings(keys[i])
-	}
+	// Sort the non-meta attributes and blocks alphabetically
+	sort.Strings(keys[1])
+	sort.Strings(keys[2])
 
 	log.WithField("keys", keys).Debugln("Returning sorted keys")
 	return keys
+}
+
+// sortByMetaArgOrder stably sorts keys by the index of their type in order.
+// A block key's type is its first space-separated token (see formatBlockKey).
+// Every key's type must be present in order (guaranteed by getSortedBlockKeys).
+func sortByMetaArgOrder(keys []string, order []string) {
+	rank := func(key string) int {
+		keyType, _, _ := strings.Cut(key, " ")
+		return slices.Index(order, keyType)
+	}
+	sort.SliceStable(keys, func(i, j int) bool {
+		return rank(keys[i]) < rank(keys[j])
+	})
 }
 
 // formatBlockKey returns a formatted string of a block's type and labels.

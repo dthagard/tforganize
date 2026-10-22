@@ -30,7 +30,7 @@
 ## Features at a glance
 
 - **Deterministic sorting** – blocks are sorted by logical type priority (`terraform` → `variable` → `locals` → `data` → `resource` → `module` → `import` → `moved` → `removed` → `check` → `output`), then alphabetically by label within each type group. Use `--no-sort-by-type` to revert to plain alphabetical type ordering.
-- **Terraform-aware meta args** – `count`, `for_each`, `providers`, `moved`, `removed`, `check`, and friends are placed exactly where Terraform expects them.
+- **Style-guide argument order** – block bodies follow the [Terraform style guide](https://developer.hashicorp.com/terraform/language/style#resource-order): meta-arguments (`count`/`for_each`, `provider`) first, then non-block arguments, then nested blocks, then `provisioner`, `lifecycle`, and `depends_on` last. Variables use `type`, `description`, `default`, `sensitive`; outputs use `type`, `description`, `value`, `sensitive`. Arguments and nested blocks are alphabetical within their group; repeated blocks such as provisioners keep source order.
 - **Group-by-type output** – `tforganize sort -g` rewrites files into logical targets (`variables.tf`, `outputs.tf`, `checks.tf`, `imports.tf`, `main.tf`, …).
 - **Header/comment control** – strip comments entirely, preserve them, or keep/apply a custom header banner.
 - **Stdin support** – pipe HCL content via stdin (`cat main.tf | tforganize sort -`) for easy integration with other tools.
